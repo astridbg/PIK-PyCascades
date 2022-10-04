@@ -62,7 +62,7 @@ net_size = net.number_of_nodes()
 initial_state = np.zeros(net_size)
 node = 0
 ev = evolve( net , initial_state )
-c = net.nodes[node]['data'].get_par()['c']
+c = net.node[node]['data'].get_par()['c']
 net.set_param( node, 'c', 0.2 )
 ev.integrate(t_step, t_end)
 output_er = []
@@ -82,7 +82,7 @@ while output_er[-1][1] < 4 or output_er[-1][1] > 8:
 	initial_state = np.zeros(net_size)
 	node = 0
 	ev = evolve( net , initial_state )
-	c = net.nodes[node]['data'].get_par()['c']
+	c = net.node[node]['data'].get_par()['c']
 	net.set_param( node, 'c', 0.2 )
 	ev.integrate(t_step, t_end)
 
@@ -100,7 +100,7 @@ net_size = net.number_of_nodes()
 initial_state = np.zeros(net_size)
 node = 0
 ev = evolve( net , initial_state )
-c = net.nodes[node]['data'].get_par()['c']
+c = net.node[node]['data'].get_par()['c']
 net.set_param( node, 'c', 0.2 )
 ev.integrate(t_step, t_end)
 output_ws = []
@@ -115,7 +115,7 @@ while output_ws[-1][1] < 4 or output_ws[-1][1] > 8:
 	initial_state = np.zeros(net_size)
 	node = 0
 	ev = evolve( net , initial_state )
-	c = net.nodes[node]['data'].get_par()['c']
+	c = net.node[node]['data'].get_par()['c']
 	net.set_param( node, 'c', 0.2 )
 	ev.integrate(t_step, t_end)
 
@@ -133,7 +133,7 @@ net_size = net.number_of_nodes()
 initial_state = np.zeros(net_size)
 node = 0
 ev = evolve( net , initial_state )
-c = net.nodes[node]['data'].get_par()['c']
+c = net.node[node]['data'].get_par()['c']
 net.set_param( node, 'c', 0.2 )
 ev.integrate(t_step, t_end)
 output_ba = []
@@ -148,7 +148,7 @@ while output_ba[-1][1] < 4 or output_ba[-1][1] > 8:
 	initial_state = np.zeros(net_size)
 	node = 0
 	ev = evolve( net , initial_state )
-	c = net.nodes[node]['data'].get_par()['c']
+	c = net.node[node]['data'].get_par()['c']
 	net.set_param( node, 'c', 0.2 )
 	ev.integrate(t_step, t_end)
 

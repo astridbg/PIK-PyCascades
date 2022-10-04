@@ -31,7 +31,6 @@ from core.evolve_economic import evolve
 
 start_time = time.time()
 
-
 w_log = 0.2 # weight of the logistic term
 startnode =  int(sys.argv[1]) # start node for the cascade
 timestep =  0.5 # time interval after which the system is saved. 
