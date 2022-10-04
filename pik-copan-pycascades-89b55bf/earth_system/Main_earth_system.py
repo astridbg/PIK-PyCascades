@@ -125,8 +125,8 @@ for kk in plus_minus_links:
     
     # astridg change start
     # Define sigma for random processes
-    noise = 0.25                                            #noise level
-    n = 1                                                   #number of investigated tipping elements
+    noise = 0.25                                            #noise level (could be changed: from Laeo Crnkovic-Rubsamen, 0.01)
+    n = 4                                                   #number of investigated tipping elements
     sigma = np.diag([1]*n)*noise                            #diagonal uncorrelated noise
     ev.integrate( timestep, t_end, initial_state, sigma=sigma)
     # astridg change end
