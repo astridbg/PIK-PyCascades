@@ -20,7 +20,8 @@ from PyPDF2 import PdfFileMerger
 
 
 # private imports from sys.path
-from evolve import evolve
+# from evolve import evolve # astridg commented out
+from evolve_sde import evolve # astridg
 
 #private imports for earth system
 from earth_sys.timing import timing
@@ -120,7 +121,15 @@ for kk in plus_minus_links:
     timestep = t_step
     sim_length = duration 
     t_end = sim_length/conv_fac_gis
-    ev.integrate(timestep, t_end)
+    #ev.integrate(timestep, t_end) # astridg commented out
+    
+    # astridg change start
+    # Define sigma for random processes
+    noise = 0.25                                            #noise level
+    n = 1                                                   #number of investigated tipping elements
+    sigma = np.diag([1]*n)*noise                            #diagonal uncorrelated noise
+    ev.integrate( timestep, t_end, initial_state, sigma=sigma)
+    # astridg change end
 
     #save and plot the temporal evolution
     fig = plt.figure()
