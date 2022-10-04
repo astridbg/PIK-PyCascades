@@ -76,11 +76,11 @@ ax0.set_yticks(np.arange(-1.0, 2.5, 0.5))
 ax0.legend(loc="lower left")
 
 fig.tight_layout()
-#fig.savefig('figures/levy.png')
-#fig.savefig('figures/levy.pdf')
+#fig.savefig('/home/astridbg/Documents/PIK-PyCascades/figures/levy.png')
+fig.savefig('/home/astridbg/Documents/PIK-PyCascades/figures/levy.pdf')
 fig.show()
-fig.clf()
-plt.close()
+#fig.clf()
+#plt.close()
 
 
 print("Finish")
