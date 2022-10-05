@@ -20,8 +20,8 @@ from PyPDF2 import PdfFileMerger
 
 
 # private imports from sys.path
-# from evolve import evolve # astridg commented out
-from evolve_sde import evolve # astridg
+#from evolve import evolve # astridg commented out
+from evolve_sde import evolve # astridg edit
 
 #private imports for earth system
 from earth_sys.timing import timing
@@ -32,8 +32,11 @@ from earth_sys.earth import earth_system
 
 ###MAIN
 long_save_name = "results"
-duration = 100000.  #actual real simulation years
-t_step = 15		    #Time step per integration step
+#duration = 100000.         #actual real simulation years # astridg commented out
+#t_step = 15		    #Time step per integration step # astridg commented out
+duration = 10000.           #actual real simulation years # astridg edit
+t_step = 1                  #Time step per integration step # astridg edit
+
 
 #######################GLOBAL VARIABLES##############################
 #drive coupling strength
@@ -125,13 +128,13 @@ for kk in plus_minus_links:
     
     # astridg change start
     # Define sigma for random processes
-    noise = 0.25                                            #noise level (could be changed: from Laeo Crnkovic-Rubsamen, 0.01)
-    n = 4                                                   #number of investigated tipping elements
-    sigma = np.diag([1]*n)*noise                            #diagonal uncorrelated noise
+    noise = 0.01                                                #noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
+    n = 4                                                       #number of investigated tipping elements
+    sigma = np.diag([1]*n)*noise                                #diagonal uncorrelated noise
     ev.integrate( timestep, t_end, initial_state, sigma=sigma)
     # astridg change end
 
-    #save and plot the temporal evolution
+    # save and plot the temporal evolution
     fig = plt.figure()
     # in case integration time should look the same for all runs divide t_arr_saving_structure by timer
     plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 0], color="c", label="GIS")
