@@ -86,7 +86,8 @@ earth_system = earth_system(gis_time, thc_time, wais_time, amaz_time,
                             pf_wais_to_thc, pf_gis_to_wais, pf_thc_to_wais, pf_thc_to_amaz)
 
 ################################# MAIN LOOP #################################
-for kk in plus_minus_links:
+#for kk in plus_minus_links: # astridg commented out for fast checking 
+for kk in [plus_minus_links[0]]:
     print("Wais to Thc:{}".format(kk[0]))
     print("Thc to Amaz:{}".format(kk[1]))
     
@@ -132,7 +133,14 @@ for kk in plus_minus_links:
     n = 4                                                       #number of investigated tipping elements
     sigma = np.diag([1]*n)*noise                                #diagonal uncorrelated noise
     ev.integrate( timestep, t_end, initial_state, sigma=sigma)
+    
+    # Get autocorrelation timeseries
+    start_point = int(5)
+    detrend_window = int(1000//conv_fac_gis)
+    step_size = int(5) 
+    autocorr, end_point = ev.get_autocorrelation(start_point,detrend_window,step_size)
     # astridg change end
+
 
     # save and plot the temporal evolution
     fig = plt.figure()
@@ -141,6 +149,15 @@ for kk in plus_minus_links:
     plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 1], color="b", label="THC")
     plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 2], color="k", label="WAIS")
     plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 3], color="g", label="AMAZ")
+    
+    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis, 
+                autocorr[:, 0], color="c", marker=".", label="AC GIS")
+    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis,
+                autocorr[:, 1], color="b", marker=".", label="AC THC")
+    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis,
+                autocorr[:, 2], color="k", marker=".", label="AC WAIS")
+    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis,
+                autocorr[:, 3], color="g", marker=".", label="AC AMAZ")
 
     plt.title("coupling strength: {}, GMT: {}".format(np.round(strength, 2), np.round(GMT, 2)))
     plt.xlabel("time [years]")
@@ -196,3 +213,5 @@ os.chdir(current_dir)
 
 
 print("Finish")
+
+

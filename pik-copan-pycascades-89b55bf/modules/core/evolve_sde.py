@@ -115,3 +115,59 @@ class evolve():
             return True
         else:
             return False
+
+    def get_autocorrelation( self , start_point, 
+            detrend_window=1000, step_size=10):
+        
+        #print("Total length of time steps: ", len(self._times))
+        #print("First timestep to start calculating autocorrelation: ", start_point)
+        n = self._net.number_of_nodes()
+        t = np.array(self._times[start_point:])
+        x = np.array(self._states[start_point:])
+        N = len(t)  # length of dataset after start point
+        M = (N-detrend_window)//step_size # length of autocorrelation values
+        #print("Number of time steps after starting point: ", N)
+        #print("Size of detrending window: ", detrend_window)
+        #print("Number of autocorrelation values to be calculated", M)
+        #print("Length of iteration: ", len(range(0, N-detrend_window, step_size)))
+
+        autocorr = np.zeros(( M,n ))
+        count = 0
+        
+        for i in range(0, M*step_size, step_size): 
+            
+            for node in range(0,n):
+                
+                # Detrend the state values within the detrend window
+                # for each node (should these be different bc of timescales?)
+                trend = np.polyval ( np.polyfit(t[i:i+detrend_window], 
+                                                x[i:i+detrend_window,node], 1), 
+                                                t[i:i+detrend_window])
+                x_detrend = x[i:i+detrend_window,node] - trend
+                 
+                # Calculate correlation coefficient with lag 1
+                coeff_lag1 = np.corrcoef(x_detrend[:-1],x_detrend[1:])[0,1]
+                
+            
+                autocorr[count,node] = coeff_lag1
+            #print(count)
+            #print(i+detrend_window)
+            count += 1
+        
+        end_point = start_point + M*step_size
+        #print("Last time starting point for autocorrelation to be calculated: ", end_point)
+        #print ("Time array length: ", len(self._times[start_point:end_point:step_size]))
+        return autocorr, end_point
+
+
+
+
+
+
+
+            
+        
+
+
+
+                
