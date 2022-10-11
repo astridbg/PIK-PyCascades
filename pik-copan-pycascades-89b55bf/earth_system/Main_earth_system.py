@@ -154,8 +154,9 @@ for kk in [plus_minus_links[0]]:
         for GMT in GMTs:
             
             output = []
-            states = []
+            states_GIS = []
             last_point = 0
+            autocorr = []
 
             for t in range(0, int(duration)):
 
@@ -181,29 +182,27 @@ for kk in [plus_minus_links[0]]:
                 
                 if ews_calculate == True:
                     # save states for ews analysis
-                    states.append([ev.get_timeseries()[1][:, 0],
-                                   ev.get_timeseries()[1][:, 1],
-                                   ev.get_timeseries()[1][:, 2],
-                                   ev.get_timeseries()[1][:, 3]])
-                """
-                    if len(states) > min_point+detrend_window and len(states) > last_point+detrend_window:
+                    states_GIS = np.append(states_GIS, ev.get_timeseries()[1][:, 0])
+                    
+                    
+                    if len(states_GIS) > min_point+detrend_window and len(states_GIS) > last_point+detrend_window:
                         
-                        states_gis = np.array(states).T[0]
-                        startingPoint = max(last_point, minimumPoint-windowSize)
+                        start_point = max(last_point, min_point-detrend_window)
 
-                        for i in range(startingPoint, len(states)-detrend_window, stepSize):
-                            currentWindow = cuspArray[i : i + windowSize]
-                            detrendedWindow = currentWindow - np.polyval(np.polyfit(np.arange(currentWindow.size)
-                            , currentWindow, 1), np.arange(currentWindow.shape[0]))
+                        for i in range(start_point, len(states_GIS)-detrend_window, step_size):
+                            # Detrend the state values within the detrend window
+                            # for each node (should these be different bc of timescales?)
+                            trend = np.polyval(np.polyfit(np.arange(len(states_GIS[i : i+detrend_window])),
+                                                          states_GIS[i : i+detrend_window], 1),
+                                                          np.arange(len(states_GIS[i : i+detrend_window])))
+                            detrended = states_GIS[i : i+detrend_window] - trend
 
-                            prevWindow = detrendedWindow[:-1]
-                            nextWindow = detrendedWindow[1:]
-                            AcArray = np.append(AcArray, np.corrcoef(prevWindow, nextWindow)[0,1])
+                            # Calculate correlation coefficient with lag 1
+                            coeff_lag1 = np.corrcoef(detrended[:-1], detrended[1:])[0,1]
 
-
-                        
-                """
-                        
+                            autocorr.append(coeff_lag1)
+                
+                        last_point = i 
 
                 #saving structure
                 output.append([t,
@@ -219,7 +218,8 @@ for kk in [plus_minus_links[0]]:
                                ])
 
 
-            print(len(states))
+            print(autocorr)
+            
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
