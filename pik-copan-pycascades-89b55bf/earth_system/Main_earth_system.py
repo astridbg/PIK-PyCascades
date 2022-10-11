@@ -28,23 +28,33 @@ from earth_sys.timing import timing
 from earth_sys.functions_earth_system import global_functions
 from earth_sys.earth import earth_system
 
-
+#measure time
+#start = time.time()
 
 ###MAIN
-long_save_name = "results"
-#duration = 100000.         #actual real simulation years # astridg commented out
-#t_step = 15		    #Time step per integration step # astridg commented out
-duration = 10000.           #actual real simulation years # astridg edit
-t_step = 1                  #Time step per integration step # astridg edit
 
+# astridg added from another program
+#############################GLOBAL SWITCHES#########################################
+time_scale = True               # time scale of tipping is incorporated
+plus_minus_include = True       # from Kriegler, 2009: Unclear links; if False all unclear links are set to off state and only network "0-0" is computed
+ews_calculate = True            # early warning signals are calculated
+#####################################################################
+duration = 10000.           #actual real simulation years # astridg edit
+long_save_name = "results"
 
 #######################GLOBAL VARIABLES##############################
 #drive coupling strength
-strength = 0.25
+#strength = 0.25 # astridg commented out
+#coupling_strength = np.linspace(0.0, 1.0, 11, endpoint=True)
+coupling_strength = np.array([0.25])
 #drive global mean temperature (GMT) above pre-industrial
-GMT = 2.0
+#GMT = 2.0 # astridg commented out
+GMTs = [np.linspace(0.0, 3.0, int(duration))]
 #####################################################################
-
+# Variables for Early Warning Signal analysis
+min_point = 100
+detrend_window = 1000
+step_size = 10
 
 ########################Declaration of variables from passed values#######################
 sys_var = np.array(sys.argv[2:], dtype=float)
@@ -64,19 +74,49 @@ pf_thc_to_wais, pf_gis_to_wais = sys_var[8], sys_var[9]
 pf_thc_to_amaz = sys_var[10]
 
 
-
+#astridg commented out
 #Time scale
-print("Compute calibration timescale")
+#print("Compute calibration timescale")
 #function call for absolute timing and time conversion
-time_props = timing()
-gis_time, thc_time, wais_time, amaz_time = time_props.timescales()
-conv_fac_gis = time_props.conversion()
+#time_props = timing()
+#gis_time, thc_time, wais_time, amaz_time = time_props.timescales()
+#conv_fac_gis = time_props.conversion()
 
+# Time scale
+"""
+All tipping times are computed ion comparison to the Amazon rainforest tipping time. As this is variable now, this affects the results to a (very) level
+"""
+if time_scale == True:
+    print("compute calibration timescale")
+    #function call for absolute timing and time conversion
+    #time_props = timing(tau_gis, tau_thc, tau_wais, tau_amaz)
+    time_props = timing()
+    gis_time, thc_time, wais_time, amaz_time = time_props.timescales()
+    conv_fac_gis = time_props.conversion()
+    print(conv_fac_gis)
+else:
+    #no time scales included
+    gis_time = thc_time = wais_time = amaz_time = 1.0
+    conv_fac_gis = 1.0
 
-#include uncertain "+-" links:
-plus_minus_links = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
+# astridg commented out
+#plus_minus_links = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
+#directories for the Monte Carlo simulation
+#mc_dir = int(sys_var[-1])
+
+# Include uncertain "+-" links:
+if plus_minus_include == True:
+    plus_minus_links = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
+else:
+    plus_minus_links = [np.array([1., 1., 1.])]
+
 #directories for the Monte Carlo simulation
 mc_dir = int(sys_var[-1])
+
+# Define sigma for random processes
+noise = 0.01                    #noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
+n = 4                           #number of investigated tipping elements
+sigma = np.diag([1]*n)*noise    #diagonal uncorrelated noise
 
 ################################# MAIN #################################
 #Create Earth System
@@ -109,31 +149,125 @@ for kk in [plus_minus_links[0]]:
     #save starting conditions
     np.savetxt("{}/feedbacks/network_{}_{}/{}/empirical_values.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4)), sys_var)
 
+    for strength in coupling_strength:
 
-    output = []
+        for GMT in GMTs:
+            
+            output = []
+            states = []
+            last_point = 0
 
-    state_before = [-1, -1, -1, -1] #initial state
-    #get back the network of the Earth system
-    net = earth_system.earth_network(GMT, strength, kk[0], kk[1])
+            for t in range(0, int(duration)):
 
-    # initialize state
-    initial_state = [-1, -1, -1, -1]
-    ev = evolve(net, initial_state)
-    # plotter.network(net)
+                effective_GMT = GMT[t]
 
-    # Timestep to integration
-    timestep = t_step
-    sim_length = duration 
-    t_end = sim_length/conv_fac_gis
-    #ev.integrate(timestep, t_end) # astridg commented out
-    
-    # astridg change start
-    # Define sigma for random processes
-    noise = 0.01                                                #noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
-    n = 4                                                       #number of investigated tipping elements
-    sigma = np.diag([1]*n)*noise                                #diagonal uncorrelated noise
-    ev.integrate( timestep, t_end, initial_state, sigma=sigma)
-    
+                #get back the network of the Earth system
+                net = earth_system.earth_network(effective_GMT, strength, kk[0], kk[1])
+
+                # initialize state
+                if t == 0:
+                    initial_state = [-1, -1, -1, -1]
+                else:
+                    initial_state = [ev.get_timeseries()[1][-1, 0], ev.get_timeseries()[1][-1, 1], ev.get_timeseries()[1][-1, 2], ev.get_timeseries()[1][-1, 3]]
+                ev = evolve(net, initial_state)
+                # plotter.network(net)
+
+                # Timestep to integration; it is also possible to run integration until equilibrium
+                timestep = 0.01
+                #t_end given in years; also possible to use equilibrate method
+                t_end = 1.0/conv_fac_gis # simulation length in "real" years 
+                
+                ev.integrate( timestep, t_end, initial_state, sigma=sigma)
+                
+                if ews_calculate == True:
+                    # save states for ews analysis
+                    states.append([ev.get_timeseries()[1][:, 0],
+                                   ev.get_timeseries()[1][:, 1],
+                                   ev.get_timeseries()[1][:, 2],
+                                   ev.get_timeseries()[1][:, 3]])
+                """
+                    if len(states) > min_point+detrend_window and len(states) > last_point+detrend_window:
+                        
+                        states_gis = np.array(states).T[0]
+                        startingPoint = max(last_point, minimumPoint-windowSize)
+
+                        for i in range(startingPoint, len(states)-detrend_window, stepSize):
+                            currentWindow = cuspArray[i : i + windowSize]
+                            detrendedWindow = currentWindow - np.polyval(np.polyfit(np.arange(currentWindow.size)
+                            , currentWindow, 1), np.arange(currentWindow.shape[0]))
+
+                            prevWindow = detrendedWindow[:-1]
+                            nextWindow = detrendedWindow[1:]
+                            AcArray = np.append(AcArray, np.corrcoef(prevWindow, nextWindow)[0,1])
+
+
+                        
+                """
+                        
+
+                #saving structure
+                output.append([t,
+                               ev.get_timeseries()[1][-1, 0],
+                               ev.get_timeseries()[1][-1, 1],
+                               ev.get_timeseries()[1][-1, 2],
+                               ev.get_timeseries()[1][-1, 3],
+                               net.get_number_tipped(ev.get_timeseries()[1][-1]),
+                               [net.get_tip_states(ev.get_timeseries()[1][-1])[0]].count(True),
+                               [net.get_tip_states(ev.get_timeseries()[1][-1])[1]].count(True),
+                               [net.get_tip_states(ev.get_timeseries()[1][-1])[2]].count(True),
+                               [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
+                               ])
+
+
+            print(len(states))
+            #necessary for break condition
+            if len(output) != 0:
+                #saving structure
+                data = np.array(output)
+                np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_{:.2f}.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), strength), data)
+                time = data.T[0]
+                state_gis = data.T[1]
+                state_thc = data.T[2]
+                state_wais = data.T[3]
+                state_amaz = data.T[4]
+
+                #plotting structure
+                fig = plt.figure()
+                plt.grid(True)
+                plt.title("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
+                plt.plot(time, state_gis, label="GIS", color='c')
+                plt.plot(time, state_thc, label="THC", color='b')
+                plt.plot(time, state_wais, label="WAIS", color='k')
+                plt.plot(time, state_amaz, label="AMAZ", color='g')
+                plt.xlabel("Time [yr]")
+                plt.ylabel("system feature f [a.u.]")
+                plt.legend(loc='best')  # , ncol=5)
+                plt.tight_layout()
+                plt.savefig("{}/feedbacks/network_{}_{}/{}/time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
+                #plt.show()
+                plt.clf()
+                plt.close()
+
+    # it is necessary to limit the amount of saved files
+    # --> compose one pdf file for each network setting and remove the other time-files
+    current_dir = os.getcwd()
+    os.chdir("{}/feedbacks/network_{}_{}/{}/".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4)))
+    pdfs = np.array(np.sort(glob.glob("feedbacks_*.pdf"), axis=0))
+    if len(pdfs) != 0.:
+        merger = PdfFileMerger()
+        for pdf in pdfs:
+            merger.append(pdf)
+        os.system("rm feedbacks_*.pdf")
+        merger.write("feedbacks_complete.pdf")
+        print("Complete PDFs merged")
+    os.chdir(current_dir)
+
+print("Finish")
+#end = time.time()
+#print("Time elapsed until Finish: {}s".format(end - start))
+
+"""
+
     # Get autocorrelation timeseries
     start_point = int(5)
     detrend_window = int(1000//conv_fac_gis)
@@ -214,4 +348,4 @@ os.chdir(current_dir)
 
 print("Finish")
 
-
+"""
