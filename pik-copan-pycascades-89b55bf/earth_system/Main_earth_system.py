@@ -22,6 +22,7 @@ from PyPDF2 import PdfFileMerger
 # private imports from sys.path
 #from evolve import evolve # astridg commented out
 from evolve_sde import evolve # astridg edit
+from EWS_functions import calc_autocorrelation
 
 #private imports for earth system
 from earth_sys.timing import timing
@@ -37,9 +38,9 @@ from earth_sys.earth import earth_system
 #############################GLOBAL SWITCHES#########################################
 time_scale = True               # time scale of tipping is incorporated
 plus_minus_include = True       # from Kriegler, 2009: Unclear links; if False all unclear links are set to off state and only network "0-0" is computed
-ews_calculate = True            # early warning signals are calculated
+ews_calculate = False            # early warning signals are calculated
 #####################################################################
-duration = 10000.           #actual real simulation years # astridg edit
+duration = 10000.               #actual real simulation years # astridg edit
 long_save_name = "results"
 
 #######################GLOBAL VARIABLES##############################
@@ -50,8 +51,14 @@ coupling_strength = np.array([0.25])
 #drive global mean temperature (GMT) above pre-industrial
 #GMT = 2.0 # astridg commented out
 GMTs = [np.linspace(0.0, 3.0, int(duration))]
-#####################################################################
-# Variables for Early Warning Signal analysis
+
+##########Characteristics of noise###################################
+# Define sigma for random processes
+noise = 0.0                    #noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
+n = 4                           #number of investigated tipping elements
+sigma = np.diag([1]*n)*noise    #diagonal uncorrelated noise
+
+##########Variables for Early Warning Signal analysis################
 min_point = 100
 detrend_window = 1000
 step_size = 10
@@ -154,12 +161,14 @@ for kk in [plus_minus_links[0]]:
         for GMT in GMTs:
             
             output = []
-            states_GIS = []
+            states_GIS = []; autocorr_GIS = []
+            states_THC = []; autocorr_THC = []
+            states_WAIS = []; autocorr_WAIS = []
+            states_AMAZ = []; autocorr_AMAz = []
             last_point = 0
-            autocorr = []
 
             for t in range(0, int(duration)):
-
+                print("t: ", t)
                 effective_GMT = GMT[t]
 
                 #get back the network of the Earth system
@@ -182,28 +191,16 @@ for kk in [plus_minus_links[0]]:
                 
                 if ews_calculate == True:
                     # save states for ews analysis
-                    states_GIS = np.append(states_GIS, ev.get_timeseries()[1][:, 0])
-                    
+                    states_GIS = np.append(states_GIS, ev.get_timeseries()[1][1:, 0])
+                    states_THC = np.append(states_THC, ev.get_timeseries()[1][1:, 1])
+                    states_WAIS = np.append(states_WAIS, ev.get_timeseries()[1][1:, 2])
+                    states_AMAZ = np.append(states_AMAZ, ev.get_timeseries()[1][1:, 3])
                     
                     if len(states_GIS) > min_point+detrend_window and len(states_GIS) > last_point+detrend_window:
                         
-                        start_point = max(last_point, min_point-detrend_window)
-
-                        for i in range(start_point, len(states_GIS)-detrend_window, step_size):
-                            # Detrend the state values within the detrend window
-                            # for each node (should these be different bc of timescales?)
-                            trend = np.polyval(np.polyfit(np.arange(len(states_GIS[i : i+detrend_window])),
-                                                          states_GIS[i : i+detrend_window], 1),
-                                                          np.arange(len(states_GIS[i : i+detrend_window])))
-                            detrended = states_GIS[i : i+detrend_window] - trend
-
-                            # Calculate correlation coefficient with lag 1
-                            coeff_lag1 = np.corrcoef(detrended[:-1], detrended[1:])[0,1]
-
-                            autocorr.append(coeff_lag1)
-                
-                        last_point = i 
-
+                        autocorr_GIS, last_point = calc_autocorrelation(states_GIS, last_point, autocorr_GIS,
+                                                                        detrend_window, min_point, step_size)
+                #print(len(autocorr_GIS))
                 #saving structure
                 output.append([t,
                                ev.get_timeseries()[1][-1, 0],
@@ -217,9 +214,8 @@ for kk in [plus_minus_links[0]]:
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
                                ])
 
-
-            print(autocorr)
-            
+            #print(autocorr_GIS) 
+            #print(len(states_GIS))
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
