@@ -22,7 +22,7 @@ from PyPDF2 import PdfFileMerger
 # private imports from sys.path
 #from evolve import evolve # astridg commented out
 from evolve_sde import evolve # astridg edit
-from EWS_functions import calc_autocorrelation
+from EWS_functions import calc_autocorrelation, autocorrelation
 
 #private imports for earth system
 from earth_sys.timing import timing
@@ -38,9 +38,9 @@ from earth_sys.earth import earth_system
 #############################GLOBAL SWITCHES#########################################
 time_scale = True               # time scale of tipping is incorporated
 plus_minus_include = True       # from Kriegler, 2009: Unclear links; if False all unclear links are set to off state and only network "0-0" is computed
-ews_calculate = False            # early warning signals are calculated
+ews_calculate = True            # early warning signals are calculated
 #####################################################################
-duration = 10000.               #actual real simulation years # astridg edit
+duration = 10000.               # actual real simulation years
 long_save_name = "results"
 
 #######################GLOBAL VARIABLES##############################
@@ -50,17 +50,18 @@ long_save_name = "results"
 coupling_strength = np.array([0.25])
 #drive global mean temperature (GMT) above pre-industrial
 #GMT = 2.0 # astridg commented out
-GMTs = [np.linspace(0.0, 3.0, int(duration))]
-
+GMTs = [np.linspace(0.0,0.0 , int(duration))]
+#GMTs = np.fill(int(duration))
 ##########Characteristics of noise###################################
 # Define sigma for random processes
-noise = 0.0                    #noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
-n = 4                           #number of investigated tipping elements
-sigma = np.diag([1]*n)*noise    #diagonal uncorrelated noise
+noise = 0.01                    # noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
+n = 4                           # number of investigated tipping elements
+sigma = np.diag([1]*n)*noise    # diagonal uncorrelated noise
+# put sigma to "None" to exclude noise
 
 ##########Variables for Early Warning Signal analysis################
 min_point = 100
-detrend_window = 1000
+detrend_window = 5000
 step_size = 10
 
 ########################Declaration of variables from passed values#######################
@@ -94,13 +95,12 @@ pf_thc_to_amaz = sys_var[10]
 All tipping times are computed ion comparison to the Amazon rainforest tipping time. As this is variable now, this affects the results to a (very) level
 """
 if time_scale == True:
-    print("compute calibration timescale")
+    print("Compute calibration timescale")
     #function call for absolute timing and time conversion
     #time_props = timing(tau_gis, tau_thc, tau_wais, tau_amaz)
     time_props = timing()
     gis_time, thc_time, wais_time, amaz_time = time_props.timescales()
     conv_fac_gis = time_props.conversion()
-    print(conv_fac_gis)
 else:
     #no time scales included
     gis_time = thc_time = wais_time = amaz_time = 1.0
@@ -119,11 +119,6 @@ else:
 
 #directories for the Monte Carlo simulation
 mc_dir = int(sys_var[-1])
-
-# Define sigma for random processes
-noise = 0.01                    #noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
-n = 4                           #number of investigated tipping elements
-sigma = np.diag([1]*n)*noise    #diagonal uncorrelated noise
 
 ################################# MAIN #################################
 #Create Earth System
@@ -161,14 +156,15 @@ for kk in [plus_minus_links[0]]:
         for GMT in GMTs:
             
             output = []
-            states_GIS = []; autocorr_GIS = []
-            states_THC = []; autocorr_THC = []
-            states_WAIS = []; autocorr_WAIS = []
-            states_AMAZ = []; autocorr_AMAz = []
+            times = []
+            states_GIS = []; autocorr_GIS = []; ann_autocorr_GIS = []
+            states_THC = []; autocorr_THC = []; ann_autocorr_THC = []
+            states_WAIS = []; autocorr_WAIS = []; ann_autocorr_WAIS = []
+            states_AMAZ = []; autocorr_AMAZ = []; ann_autocorr_AMAZ = []
             last_point = 0
 
             for t in range(0, int(duration)):
-                print("t: ", t)
+                #print("t: ", t)
                 effective_GMT = GMT[t]
 
                 #get back the network of the Earth system
@@ -183,24 +179,53 @@ for kk in [plus_minus_links[0]]:
                 # plotter.network(net)
 
                 # Timestep to integration; it is also possible to run integration until equilibrium
-                timestep = 0.01
+                timestep = 0.1
                 #t_end given in years; also possible to use equilibrate method
                 t_end = 1.0/conv_fac_gis # simulation length in "real" years 
                 
                 ev.integrate( timestep, t_end, initial_state, sigma=sigma)
                 
                 if ews_calculate == True:
-                    # save states for ews analysis
-                    states_GIS = np.append(states_GIS, ev.get_timeseries()[1][1:, 0])
-                    states_THC = np.append(states_THC, ev.get_timeseries()[1][1:, 1])
-                    states_WAIS = np.append(states_WAIS, ev.get_timeseries()[1][1:, 2])
-                    states_AMAZ = np.append(states_AMAZ, ev.get_timeseries()[1][1:, 3])
                     
-                    if len(states_GIS) > min_point+detrend_window and len(states_GIS) > last_point+detrend_window:
+                    # save all states for ews analysis
+                    # if t !=0, do not count the first state, as it is initialized from the previous year
+                    if t == 0:
+                        states_GIS = np.append(states_GIS, ev.get_timeseries()[1][:, 0])
+                        states_THC = np.append(states_THC, ev.get_timeseries()[1][:, 1])
+                        states_WAIS = np.append(states_WAIS, ev.get_timeseries()[1][:, 2])
+                        states_AMAZ = np.append(states_AMAZ, ev.get_timeseries()[1][:, 3])
+                    else:
+                        states_GIS = np.append(states_GIS, ev.get_timeseries()[1][1:, 0])
+                        states_THC = np.append(states_THC, ev.get_timeseries()[1][1:, 1])
+                        states_WAIS = np.append(states_WAIS, ev.get_timeseries()[1][1:, 2])
+                        states_AMAZ = np.append(states_AMAZ, ev.get_timeseries()[1][1:, 3])
+                    
+                    if len(states_GIS) > max(min_point+detrend_window, last_point+detrend_window):
                         
-                        autocorr_GIS, last_point = calc_autocorrelation(states_GIS, last_point, autocorr_GIS,
+                        autocorr_GIS, last_point0, ann_mean_GIS = calc_autocorrelation(states_GIS, last_point, autocorr_GIS,
                                                                         detrend_window, min_point, step_size)
-                #print(len(autocorr_GIS))
+                        autocorr_THC, last_point0, ann_mean_THC = calc_autocorrelation(states_THC, last_point, autocorr_THC,
+                                                                        detrend_window, min_point, step_size)
+                        autocorr_WAIS, last_point0, ann_mean_WAIS = calc_autocorrelation(states_WAIS, last_point, autocorr_WAIS,
+                                                                        detrend_window, min_point, step_size)
+                        autocorr_AMAZ, last_point0, ann_mean_AMAZ = calc_autocorrelation(states_AMAZ, last_point, autocorr_AMAZ,
+                                                                        detrend_window, min_point, step_size)
+                        last_point = last_point0
+
+                        ann_autocorr_GIS = np.append(ann_autocorr_GIS, ann_mean_GIS)
+                        ann_autocorr_THC = np.append(ann_autocorr_THC, ann_mean_THC)
+                        ann_autocorr_WAIS = np.append(ann_autocorr_WAIS, ann_mean_WAIS)
+                        ann_autocorr_AMAZ = np.append(ann_autocorr_AMAZ, ann_mean_AMAZ)
+
+                        # here I want to get the mean autocorrelation value each year
+                        # and also the slope
+                    else:
+                        ann_autocorr_GIS = np.append(ann_autocorr_GIS, np.nan)
+                        ann_autocorr_THC = np.append(ann_autocorr_THC, np.nan)
+                        ann_autocorr_WAIS = np.append(ann_autocorr_WAIS, np.nan)
+                        ann_autocorr_AMAZ = np.append(ann_autocorr_AMAZ, np.nan)
+
+ 
                 #saving structure
                 output.append([t,
                                ev.get_timeseries()[1][-1, 0],
@@ -214,8 +239,8 @@ for kk in [plus_minus_links[0]]:
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
                                ])
 
-            #print(autocorr_GIS) 
-            #print(len(states_GIS))
+            #iprint(mean_autocorr_GIS)
+            #print(len(mean_autocorr_GIS))
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
@@ -244,6 +269,26 @@ for kk in [plus_minus_links[0]]:
                 plt.clf()
                 plt.close()
 
+                fig, ax1 = plt.subplots(1,1)
+                ax2 = ax1.twinx()
+                ax1.grid(True)
+                ax2.grid(False)
+                fig.suptitle("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
+                ax1.scatter(time, ann_autocorr_GIS, label="GIS", color='c', s=2)
+                ax1.scatter(time, ann_autocorr_THC, label="THC", color='b', s=2)
+                ax1.scatter(time, ann_autocorr_WAIS, label="WAIS", color='k', s=2)
+                ax1.scatter(time, ann_autocorr_AMAZ, label="AMAZ", color='g', s=2)
+                ax2.plot(time, GMT, color='r')
+                ax1.set_xlabel("Time [yr]")
+                ax1.set_ylabel("Autocorrelation")
+                ax2.set_ylabel(r"$\Delta$GMT")
+                ax1.legend(loc='best')  # , ncol=5)
+                fig.tight_layout()
+                fig.savefig("{}/feedbacks/network_{}_{}/{}/AC_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
+                #plt.show()
+                fig.clf()
+                plt.close()
+
     # it is necessary to limit the amount of saved files
     # --> compose one pdf file for each network setting and remove the other time-files
     current_dir = os.getcwd()
@@ -262,86 +307,3 @@ print("Finish")
 #end = time.time()
 #print("Time elapsed until Finish: {}s".format(end - start))
 
-"""
-
-    # Get autocorrelation timeseries
-    start_point = int(5)
-    detrend_window = int(1000//conv_fac_gis)
-    step_size = int(5) 
-    autocorr, end_point = ev.get_autocorrelation(start_point,detrend_window,step_size)
-    # astridg change end
-
-
-    # save and plot the temporal evolution
-    fig = plt.figure()
-    # in case integration time should look the same for all runs divide t_arr_saving_structure by timer
-    plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 0], color="c", label="GIS")
-    plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 1], color="b", label="THC")
-    plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 2], color="k", label="WAIS")
-    plt.plot(ev.get_timeseries()[0]*conv_fac_gis, ev.get_timeseries()[1][:, 3], color="g", label="AMAZ")
-    
-    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis, 
-                autocorr[:, 0], color="c", marker=".", label="AC GIS")
-    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis,
-                autocorr[:, 1], color="b", marker=".", label="AC THC")
-    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis,
-                autocorr[:, 2], color="k", marker=".", label="AC WAIS")
-    plt.scatter((ev.get_timeseries()[0][start_point:end_point:step_size]+detrend_window)*conv_fac_gis,
-                autocorr[:, 3], color="g", marker=".", label="AC AMAZ")
-
-    plt.title("coupling strength: {}, GMT: {}".format(np.round(strength, 2), np.round(GMT, 2)))
-    plt.xlabel("time [years]")
-    plt.ylabel("system feature f(x) [a.u.]")
-    plt.legend(loc='best')
-    plt.tight_layout()
-    plt.savefig("{}/feedbacks/network_{}_{}/{}/time_d{:.2f}_GMT{:.1f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2), np.round(GMT, 2)))
-    #plt.show()
-    plt.clf()
-    plt.close()
-
-
-
-    #saving structure
-    output.append([GMT,
-                   ev.get_timeseries()[1][-1, 0],
-                   ev.get_timeseries()[1][-1, 1],
-                   ev.get_timeseries()[1][-1, 2],
-                   ev.get_timeseries()[1][-1, 3],
-                   net.get_number_tipped(ev.get_timeseries()[1][-1]),
-                   [net.get_tip_states(ev.get_timeseries()[1][-1])[0]].count(True),
-                   [net.get_tip_states(ev.get_timeseries()[1][-1])[1]].count(True),
-                   [net.get_tip_states(ev.get_timeseries()[1][-1])[2]].count(True),
-                   [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
-                   ])
-
-
-
-    #necessary for break condition
-    if len(output) != 0:
-        #saving structure
-        data = np.array(output)
-        np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_{:.2f}.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), strength), data)
-        gmt = data.T[0]
-        state_gis = data.T[1]
-        state_thc = data.T[2]
-        state_wais = data.T[3]
-        state_amaz = data.T[4]
-
-
-# it is necessary to limit the amount of saved files
-# --> compose one pdf file for each network setting and remove the other time-files
-current_dir = os.getcwd()
-os.chdir("{}/feedbacks/network_{}_{}/{}/".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4)))
-pdfs = np.array(np.sort(glob.glob("time_d*.pdf"), axis=0))
-if len(pdfs) != 0.:
-    merger = PdfFileMerger()
-    for pdf in pdfs:
-        merger.append(pdf)
-    merger.write("timelines_complete.pdf")
-    os.system("rm time_d*.pdf")
-os.chdir(current_dir)
-
-
-print("Finish")
-
-"""
