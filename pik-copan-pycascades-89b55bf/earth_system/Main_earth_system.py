@@ -22,7 +22,7 @@ from PyPDF2 import PdfFileMerger
 # private imports from sys.path
 #from evolve import evolve # astridg commented out
 from evolve_sde import evolve # astridg edit
-from EWS_functions import calc_autocorrelation, autocorrelation
+from EWS_functions import autocorrelation, calc_autocorrelation, calc_variance
 
 #private imports for earth system
 from earth_sys.timing import timing
@@ -40,18 +40,18 @@ time_scale = True               # time scale of tipping is incorporated
 plus_minus_include = True       # from Kriegler, 2009: Unclear links; if False all unclear links are set to off state and only network "0-0" is computed
 ews_calculate = True            # early warning signals are calculated
 #####################################################################
-duration = 10000.               # actual real simulation years
+duration = 50000.               # actual real simulation years
 long_save_name = "results"
 
 #######################GLOBAL VARIABLES##############################
 #drive coupling strength
 #strength = 0.25 # astridg commented out
 #coupling_strength = np.linspace(0.0, 1.0, 11, endpoint=True)
-coupling_strength = np.array([0.25])
+coupling_strength = np.array([0.0])
 #drive global mean temperature (GMT) above pre-industrial
 #GMT = 2.0 # astridg commented out
-GMTs = [np.linspace(0.0,0.0 , int(duration))]
-#GMTs = np.fill(int(duration))
+GMTs = [np.linspace(0.0, 2.0, int(duration))]
+
 ##########Characteristics of noise###################################
 # Define sigma for random processes
 noise = 0.01                    # noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
@@ -61,7 +61,7 @@ sigma = np.diag([1]*n)*noise    # diagonal uncorrelated noise
 
 ##########Variables for Early Warning Signal analysis################
 min_point = 100
-detrend_window = 5000
+detrend_window = 500
 step_size = 10
 
 ########################Declaration of variables from passed values#######################
@@ -157,10 +157,10 @@ for kk in [plus_minus_links[0]]:
             
             output = []
             times = []
-            states_GIS = []; autocorr_GIS = []; ann_autocorr_GIS = []
-            states_THC = []; autocorr_THC = []; ann_autocorr_THC = []
-            states_WAIS = []; autocorr_WAIS = []; ann_autocorr_WAIS = []
-            states_AMAZ = []; autocorr_AMAZ = []; ann_autocorr_AMAZ = []
+            states_GIS = []; autocorr_GIS = []; ann_autocorr_GIS = []; variance_GIS = []; ann_variance_GIS = []
+            states_THC = []; autocorr_THC = []; ann_autocorr_THC = []; variance_THC = []; ann_variance_THC = []
+            states_WAIS = []; autocorr_WAIS = []; ann_autocorr_WAIS = []; variance_WAIS = []; ann_variance_WAIS = []
+            states_AMAZ = []; autocorr_AMAZ = []; ann_autocorr_AMAZ = []; variance_AMAZ = []; ann_variance_AMAZ = []
             last_point = 0
 
             for t in range(0, int(duration)):
@@ -187,8 +187,8 @@ for kk in [plus_minus_links[0]]:
                 
                 if ews_calculate == True:
                     
-                    # save all states for ews analysis
-                    # if t !=0, do not count the first state, as it is initialized from the previous year
+                    # save all states for ews analysis (relevant if t_end > timestep)
+                    # if t !=0, do not count the initial state, which is the last state of the previous year
                     if t == 0:
                         states_GIS = np.append(states_GIS, ev.get_timeseries()[1][:, 0])
                         states_THC = np.append(states_THC, ev.get_timeseries()[1][:, 1])
@@ -202,20 +202,33 @@ for kk in [plus_minus_links[0]]:
                     
                     if len(states_GIS) > max(min_point+detrend_window, last_point+detrend_window):
                         
-                        autocorr_GIS, last_point0, ann_mean_GIS = calc_autocorrelation(states_GIS, last_point, autocorr_GIS,
+                        autocorr_GIS, last_point0, ann_AC_GIS = calc_autocorrelation(states_GIS, last_point, autocorr_GIS,
                                                                         detrend_window, min_point, step_size)
-                        autocorr_THC, last_point0, ann_mean_THC = calc_autocorrelation(states_THC, last_point, autocorr_THC,
+                        autocorr_THC, last_point0, ann_AC_THC = calc_autocorrelation(states_THC, last_point, autocorr_THC,
                                                                         detrend_window, min_point, step_size)
-                        autocorr_WAIS, last_point0, ann_mean_WAIS = calc_autocorrelation(states_WAIS, last_point, autocorr_WAIS,
+                        autocorr_WAIS, last_point0, ann_AC_WAIS = calc_autocorrelation(states_WAIS, last_point, autocorr_WAIS,
                                                                         detrend_window, min_point, step_size)
-                        autocorr_AMAZ, last_point0, ann_mean_AMAZ = calc_autocorrelation(states_AMAZ, last_point, autocorr_AMAZ,
+                        autocorr_AMAZ, last_point0, ann_AC_AMAZ = calc_autocorrelation(states_AMAZ, last_point, autocorr_AMAZ,
                                                                         detrend_window, min_point, step_size)
+                        variance_GIS, last_point0, ann_var_GIS = calc_variance(states_GIS, last_point, variance_GIS,
+                                                                        detrend_window, min_point, step_size)
+                        variance_THC, last_point0, ann_var_THC = calc_variance(states_THC, last_point, variance_THC,
+                                                                        detrend_window, min_point, step_size)
+                        variance_WAIS, last_point0, ann_var_WAIS = calc_variance(states_WAIS, last_point, variance_WAIS,
+                                                                        detrend_window, min_point, step_size)
+                        variance_AMAZ, last_point0, ann_var_AMAZ = calc_variance(states_AMAZ, last_point, variance_AMAZ,
+                                                                        detrend_window, min_point, step_size)
+
                         last_point = last_point0
 
-                        ann_autocorr_GIS = np.append(ann_autocorr_GIS, ann_mean_GIS)
-                        ann_autocorr_THC = np.append(ann_autocorr_THC, ann_mean_THC)
-                        ann_autocorr_WAIS = np.append(ann_autocorr_WAIS, ann_mean_WAIS)
-                        ann_autocorr_AMAZ = np.append(ann_autocorr_AMAZ, ann_mean_AMAZ)
+                        ann_autocorr_GIS = np.append(ann_autocorr_GIS, ann_AC_GIS)
+                        ann_autocorr_THC = np.append(ann_autocorr_THC, ann_AC_THC)
+                        ann_autocorr_WAIS = np.append(ann_autocorr_WAIS, ann_AC_WAIS)
+                        ann_autocorr_AMAZ = np.append(ann_autocorr_AMAZ, ann_AC_AMAZ)
+                        ann_variance_GIS = np.append(ann_variance_GIS, ann_var_GIS)
+                        ann_variance_THC = np.append(ann_variance_THC, ann_var_THC)
+                        ann_variance_WAIS = np.append(ann_variance_WAIS, ann_var_WAIS)
+                        ann_variance_AMAZ = np.append(ann_variance_AMAZ, ann_var_AMAZ)
 
                         # here I want to get the mean autocorrelation value each year
                         # and also the slope
@@ -224,8 +237,13 @@ for kk in [plus_minus_links[0]]:
                         ann_autocorr_THC = np.append(ann_autocorr_THC, np.nan)
                         ann_autocorr_WAIS = np.append(ann_autocorr_WAIS, np.nan)
                         ann_autocorr_AMAZ = np.append(ann_autocorr_AMAZ, np.nan)
+                        ann_variance_GIS = np.append(ann_variance_GIS, np.nan)
+                        ann_variance_THC = np.append(ann_variance_THC, np.nan)
+                        ann_variance_WAIS = np.append(ann_variance_WAIS, np.nan)
+                        ann_variance_AMAZ = np.append(ann_variance_AMAZ, np.nan)
 
- 
+                
+                 
                 #saving structure
                 output.append([t,
                                ev.get_timeseries()[1][-1, 0],
@@ -239,8 +257,6 @@ for kk in [plus_minus_links[0]]:
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
                                ])
 
-            #iprint(mean_autocorr_GIS)
-            #print(len(mean_autocorr_GIS))
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
@@ -285,6 +301,26 @@ for kk in [plus_minus_links[0]]:
                 ax1.legend(loc='best')  # , ncol=5)
                 fig.tight_layout()
                 fig.savefig("{}/feedbacks/network_{}_{}/{}/AC_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
+                #plt.show()
+                fig.clf()
+                plt.close()
+
+                fig, ax1 = plt.subplots(1,1)
+                ax2 = ax1.twinx()
+                ax1.grid(True)
+                ax2.grid(False)
+                fig.suptitle("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
+                ax1.scatter(time, ann_variance_GIS, label="GIS", color='c', s=2)
+                ax1.scatter(time, ann_variance_THC, label="THC", color='b', s=2)
+                ax1.scatter(time, ann_variance_WAIS, label="WAIS", color='k', s=2)
+                ax1.scatter(time, ann_variance_AMAZ, label="AMAZ", color='g', s=2)
+                ax2.plot(time, GMT, color='r')
+                ax1.set_xlabel("Time [yr]")
+                ax1.set_ylabel(r"Variance [a.u.$^2$]")
+                ax2.set_ylabel(r"$\Delta$GMT")
+                ax1.legend(loc='best')  # , ncol=5)
+                fig.tight_layout()
+                fig.savefig("{}/feedbacks/network_{}_{}/{}/var_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
                 #plt.show()
                 fig.clf()
                 plt.close()
