@@ -1,6 +1,7 @@
 # Add modules directory to path
 import os
 import sys
+import re
 
 sys.path.append('')
 sys.path.append('../modules/gen')
@@ -9,7 +10,7 @@ sys.path.append('../modules/core')
 # global imports
 import numpy as np
 import matplotlib
-matplotlib.use("pdf")
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set(font_scale=1.)
@@ -17,7 +18,8 @@ import itertools
 import time
 import glob
 from PyPDF2 import PdfFileMerger
-
+from netCDF4 import Dataset
+from pymannkendall import original_test
 
 # private imports from sys.path
 #from evolve import evolve # astridg commented out
@@ -29,40 +31,29 @@ from earth_sys.timing import timing
 from earth_sys.functions_earth_system import global_functions
 from earth_sys.earth import earth_system
 
+temp_path = "/p/projects/dominoes/nicowun/conceptual_tipping/uniform_distribution/overshoot_study/temp_input/timeseries_final/"
+
+
 #measure time
 #start = time.time()
 
-###MAIN
-
-# astridg added from another program
 #############################GLOBAL SWITCHES#########################################
 time_scale = True               # time scale of tipping is incorporated
 plus_minus_include = True       # from Kriegler, 2009: Unclear links; if False all unclear links are set to off state and only network "0-0" is computed
 ews_calculate = True            # early warning signals are calculated
+
 #####################################################################
-duration = 50000.               # actual real simulation years
+duration = 7000.               # actual real simulation years
 long_save_name = "results"
 
 #######################GLOBAL VARIABLES##############################
 #drive coupling strength
-#strength = 0.25 # astridg commented out
 #coupling_strength = np.linspace(0.0, 1.0, 11, endpoint=True)
-coupling_strength = np.array([0.0])
+coupling_strength = np.array([0.0, 0.25])
 #drive global mean temperature (GMT) above pre-industrial
-#GMT = 2.0 # astridg commented out
-GMTs = [np.linspace(0.0, 2.0, int(duration))]
-
-##########Characteristics of noise###################################
-# Define sigma for random processes
-noise = 0.01                    # noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
-n = 4                           # number of investigated tipping elements
-sigma = np.diag([1]*n)*noise    # diagonal uncorrelated noise
-# put sigma to "None" to exclude noise
-
-##########Variables for Early Warning Signal analysis################
-min_point = 100
-detrend_window = 500
-step_size = 10
+#GMT_files = np.sort(glob.glob(temp_path+"*.txt"))
+GMT_files = [temp_path+"Tlim20_Tpeak35_tconv1000.txt"]
+#GMTs = [np.linspace(0.0, 2.0, int(duration))]
 
 ########################Declaration of variables from passed values#######################
 sys_var = np.array(sys.argv[2:], dtype=float)
@@ -82,13 +73,9 @@ pf_thc_to_wais, pf_gis_to_wais = sys_var[8], sys_var[9]
 pf_thc_to_amaz = sys_var[10]
 
 
-#astridg commented out
-#Time scale
-#print("Compute calibration timescale")
-#function call for absolute timing and time conversion
-#time_props = timing()
-#gis_time, thc_time, wais_time, amaz_time = time_props.timescales()
-#conv_fac_gis = time_props.conversion()
+#directories for the Monte Carlo simulation
+mc_dir = int(sys_var[-1])
+
 
 # Time scale
 """
@@ -106,19 +93,31 @@ else:
     gis_time = thc_time = wais_time = amaz_time = 1.0
     conv_fac_gis = 1.0
 
-# astridg commented out
-#plus_minus_links = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
-#directories for the Monte Carlo simulation
-#mc_dir = int(sys_var[-1])
-
 # Include uncertain "+-" links:
 if plus_minus_include == True:
     plus_minus_links = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
 else:
     plus_minus_links = [np.array([1., 1., 1.])]
 
-#directories for the Monte Carlo simulation
-mc_dir = int(sys_var[-1])
+
+#######################INTEGRATION VARIABLES#########################
+# Timestep to integration; it is also possible to run integration until equilibrium
+timestep = 0.1
+#t_end in each integration loop given in years; also possible to use equilibrate method
+t_end = 1.0/conv_fac_gis # simulation length in "real" years
+
+# Define sigma for random processes
+noise = 0.01                    # noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
+n = 4                           # number of investigated tipping elements
+sigma = np.diag([1]*n)*noise    # diagonal uncorrelated noise
+# put sigma to "None" to exclude noise
+
+##########Variables for Early Warning Signal analysis################
+min_point = 0			# minimum number of states after which to start calculating EWS
+detrend_window = 3000		# the length of the detrending window
+step_size = 10			# the number of states between each EWS calculation
+bw = 3                  # the bandwidth for filtering timeseries
+min_len = 25			# smallest sample numer to start 
 
 ################################# MAIN #################################
 #Create Earth System
@@ -152,18 +151,34 @@ for kk in [plus_minus_links[0]]:
     np.savetxt("{}/feedbacks/network_{}_{}/{}/empirical_values.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4)), sys_var)
 
     for strength in coupling_strength:
+        print("Coupling strength: {}".format(strength))
 
-        for GMT in GMTs:
-            
+        for GMT_file in GMT_files:
+            #print(GMT_file)
+            parts = re.split("_|Tlim|Tpeak|tconv|.txt", GMT_file)
+            T_lim  = int(parts[-6])
+            T_peak = int(parts[-4])
+            t_conv = int(parts[-2])
+
+            GMT = np.loadtxt(GMT_file).T[-1]
+
+            print("T_lim: {}°C".format(T_lim))
+            print("T_peak: {}°C".format(T_peak))
+            print("t_conv: {}yrs".format(t_conv))
+
             output = []
             times = []
-            states_GIS = []; autocorr_GIS = []; ann_autocorr_GIS = []; variance_GIS = []; ann_variance_GIS = []
+            states_GIS = []; autocorr_GIS = []; ann_autocorr_GIS = []; slope_autocorr_GIS = []; variance_GIS = []; ann_variance_GIS = []; slope_variance_GIS = []
             states_THC = []; autocorr_THC = []; ann_autocorr_THC = []; variance_THC = []; ann_variance_THC = []
             states_WAIS = []; autocorr_WAIS = []; ann_autocorr_WAIS = []; variance_WAIS = []; ann_variance_WAIS = []
             states_AMAZ = []; autocorr_AMAZ = []; ann_autocorr_AMAZ = []; variance_AMAZ = []; ann_variance_AMAZ = []
             last_point = 0
 
             for t in range(0, int(duration)):
+                #if os.path.isfile("{}/feedbacks/network_{}_{}/{}/feedbacks_Tlim{}_Tpeak{}_tconv{}_{:.2f}.txt".format(long_save_name,
+                #    kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength)) == True:
+                #    print("File already computed")
+                #    break
                 #print("t: ", t)
                 effective_GMT = GMT[t]
 
@@ -178,11 +193,6 @@ for kk in [plus_minus_links[0]]:
                 ev = evolve(net, initial_state)
                 # plotter.network(net)
 
-                # Timestep to integration; it is also possible to run integration until equilibrium
-                timestep = 0.1
-                #t_end given in years; also possible to use equilibrate method
-                t_end = 1.0/conv_fac_gis # simulation length in "real" years 
-                
                 ev.integrate( timestep, t_end, initial_state, sigma=sigma)
                 
                 if ews_calculate == True:
@@ -203,13 +213,13 @@ for kk in [plus_minus_links[0]]:
                     if len(states_GIS) > max(min_point+detrend_window, last_point+detrend_window):
                         
                         autocorr_GIS, last_point0, ann_AC_GIS = calc_autocorrelation(states_GIS, last_point, autocorr_GIS,
-                                                                        detrend_window, min_point, step_size)
+                                                                        detrend_window, min_point, step_size, 3)
                         autocorr_THC, last_point0, ann_AC_THC = calc_autocorrelation(states_THC, last_point, autocorr_THC,
-                                                                        detrend_window, min_point, step_size)
+                                                                        detrend_window, min_point, step_size, 3)
                         autocorr_WAIS, last_point0, ann_AC_WAIS = calc_autocorrelation(states_WAIS, last_point, autocorr_WAIS,
-                                                                        detrend_window, min_point, step_size)
+                                                                        detrend_window, min_point, step_size, 3)
                         autocorr_AMAZ, last_point0, ann_AC_AMAZ = calc_autocorrelation(states_AMAZ, last_point, autocorr_AMAZ,
-                                                                        detrend_window, min_point, step_size)
+                                                                        detrend_window, min_point, step_size, 3)
                         variance_GIS, last_point0, ann_var_GIS = calc_variance(states_GIS, last_point, variance_GIS,
                                                                         detrend_window, min_point, step_size)
                         variance_THC, last_point0, ann_var_THC = calc_variance(states_THC, last_point, variance_THC,
@@ -242,8 +252,13 @@ for kk in [plus_minus_links[0]]:
                         ann_variance_WAIS = np.append(ann_variance_WAIS, np.nan)
                         ann_variance_AMAZ = np.append(ann_variance_AMAZ, np.nan)
 
-                
-                 
+                    #if len(autocorr_GIS) > min_len:
+                    #    # calculate slope
+                    #    test_result = original_test(autocorr_GIS)
+                    #    slope_autocorr_GIS.append(test_result.trend)
+                    #else:
+                    #    slope_autocorr_GIS.append('')                 
+
                 #saving structure
                 output.append([t,
                                ev.get_timeseries()[1][-1, 0],
@@ -261,7 +276,8 @@ for kk in [plus_minus_links[0]]:
             if len(output) != 0:
                 #saving structure
                 data = np.array(output)
-                np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_{:.2f}.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), strength), data)
+                np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_Tlim{}_Tpeak{}_tconv{}_{:.2f}.txt".format(long_save_name, 
+			        kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength), data)
                 time = data.T[0]
                 state_gis = data.T[1]
                 state_thc = data.T[2]
@@ -280,7 +296,10 @@ for kk in [plus_minus_links[0]]:
                 plt.ylabel("system feature f [a.u.]")
                 plt.legend(loc='best')  # , ncol=5)
                 plt.tight_layout()
-                plt.savefig("{}/feedbacks/network_{}_{}/{}/time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
+                plt.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
+			    kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
+
+                #plt.savefig("{}/feedbacks/network_{}_{}/{}/time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
                 #plt.show()
                 plt.clf()
                 plt.close()
@@ -294,13 +313,16 @@ for kk in [plus_minus_links[0]]:
                 ax1.scatter(time, ann_autocorr_THC, label="THC", color='b', s=2)
                 ax1.scatter(time, ann_autocorr_WAIS, label="WAIS", color='k', s=2)
                 ax1.scatter(time, ann_autocorr_AMAZ, label="AMAZ", color='g', s=2)
-                ax2.plot(time, GMT, color='r')
+                ax2.plot(time, GMT[:int(duration)], color='r')
                 ax1.set_xlabel("Time [yr]")
                 ax1.set_ylabel("Autocorrelation")
                 ax2.set_ylabel(r"$\Delta$GMT")
                 ax1.legend(loc='best')  # , ncol=5)
                 fig.tight_layout()
-                fig.savefig("{}/feedbacks/network_{}_{}/{}/AC_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
+                fig.savefig("{}/feedbacks/network_{}_{}/{}/AC_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
+			        kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
+
+                #fig.savefig("{}/feedbacks/network_{}_{}/{}/AC_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
                 #plt.show()
                 fig.clf()
                 plt.close()
@@ -314,17 +336,20 @@ for kk in [plus_minus_links[0]]:
                 ax1.scatter(time, ann_variance_THC, label="THC", color='b', s=2)
                 ax1.scatter(time, ann_variance_WAIS, label="WAIS", color='k', s=2)
                 ax1.scatter(time, ann_variance_AMAZ, label="AMAZ", color='g', s=2)
-                ax2.plot(time, GMT, color='r')
+                ax2.plot(time, GMT[:int(duration)], color='r')
                 ax1.set_xlabel("Time [yr]")
                 ax1.set_ylabel(r"Variance [a.u.$^2$]")
                 ax2.set_ylabel(r"$\Delta$GMT")
                 ax1.legend(loc='best')  # , ncol=5)
                 fig.tight_layout()
-                fig.savefig("{}/feedbacks/network_{}_{}/{}/var_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
+                fig.savefig("{}/feedbacks/network_{}_{}/{}/var_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
+			        kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
+
+                #fig.savefig("{}/feedbacks/network_{}_{}/{}/var_time_d{:.2f}.pdf".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), np.round(strength, 2)))
                 #plt.show()
                 fig.clf()
                 plt.close()
-
+"""
     # it is necessary to limit the amount of saved files
     # --> compose one pdf file for each network setting and remove the other time-files
     current_dir = os.getcwd()
@@ -338,7 +363,7 @@ for kk in [plus_minus_links[0]]:
         merger.write("feedbacks_complete.pdf")
         print("Complete PDFs merged")
     os.chdir(current_dir)
-
+"""
 print("Finish")
 #end = time.time()
 #print("Time elapsed until Finish: {}s".format(end - start))

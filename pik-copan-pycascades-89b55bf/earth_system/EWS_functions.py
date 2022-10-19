@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 
 
 def autocorrelation(y): 
@@ -13,7 +14,7 @@ def autocorrelation(y):
     
     return r
 
-def calc_autocorrelation(states, start_point, autocorr,
+def calc_autocorrelation_linear(states, start_point, autocorr,
                          detrend_window, min_point, step_size):
 
     start_point = max(start_point, min_point)
@@ -38,7 +39,26 @@ def calc_autocorrelation(states, start_point, autocorr,
 
     return autocorr, next_point, ann_mean
 
+def calc_autocorrelation(states, start_point, autocorr,
+                         detrend_window, min_point, step_size, bw):
 
+    start_point = max(start_point, min_point)
+    autocorr_tmp = []
+
+    for i in range(start_point, len(states)-detrend_window, step_size):
+        filtered = gaussian_filter1d( states[i : i+detrend_window], bw )
+        detrended = states[i : i+detrend_window] - filtered
+
+
+        # Calculate correlation coefficient with lag 1
+        coeff_lag1 = autocorrelation(detrended)
+        autocorr_tmp = np.append(autocorr_tmp,coeff_lag1)
+
+    autocorr = np.append(autocorr,autocorr_tmp)
+    ann_mean = np.mean(autocorr_tmp)
+    next_point = i+step_size
+
+    return autocorr, next_point, ann_mean
 
 def calc_variance(states, start_point, variance,
                   detrend_window, min_point, step_size):
