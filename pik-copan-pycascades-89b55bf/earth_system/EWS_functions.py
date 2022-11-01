@@ -60,7 +60,7 @@ def calc_autocorrelation(states, start_point, autocorr,
 
     return autocorr, next_point, ann_mean
 
-def calc_variance(states, start_point, variance,
+def calc_variance_linear(states, start_point, variance,
                   detrend_window, min_point, step_size):
 
     start_point = max(start_point, min_point)
@@ -73,6 +73,29 @@ def calc_variance(states, start_point, variance,
                                       states[i : i+detrend_window], 1),
                                       np.arange(detrend_window))
         detrended = states[i : i+detrend_window] - trend
+
+
+        # Calculate correlation coefficient with lag 1
+        var = np.var(detrended)
+        variance_tmp = np.append(variance_tmp,var)
+
+    variance = np.append(variance,variance_tmp)
+    ann_mean = np.mean(variance_tmp)
+    next_point = i+step_size
+
+    return variance, next_point, ann_mean
+
+def calc_variance(states, start_point, variance,
+                  detrend_window, min_point, step_size, bw):
+
+    start_point = max(start_point, min_point)
+    variance_tmp = []
+
+    for i in range(start_point, len(states)-detrend_window, step_size):
+        # Detrend the state values within the detrend window
+        # for each node (should these be different bc of timescales?)
+        filtered = gaussian_filter1d(states[i : i+detrend_window], bw)
+        detrended = states[i : i+detrend_window] - filtered
 
 
         # Calculate correlation coefficient with lag 1
