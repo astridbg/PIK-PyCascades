@@ -42,7 +42,7 @@ temp_path = "/p/projects/dominoes/nicowun/conceptual_tipping/uniform_distributio
 time_scale = True               # time scale of tipping is incorporated
 plus_minus_include = False       # from Kriegler, 2009: Unclear links; if False all unclear links are set to off state and only network "0-0" is computed
 stochasticity = True            # gaussian noise is included in the tipping element evolution  
-scaled_noise = True             # noise levels for each tipping element is scaled by the respective timescale    
+scaled_noise = False             # noise levels for each tipping element is scaled by the respective timescale    
 ews_calculate = True            # early warning signals are calculated; requires stochasticity == True
 #####################################################################
 duration = 50000.               # actual real simulation years
@@ -55,12 +55,13 @@ coupling_strength = np.array([0.0])
 #drive global mean temperature (GMT) above pre-industrial
 #GMT_files = np.sort(glob.glob(temp_path+"*.txt"))
 #GMT_files = [temp_path+"Tlim20_Tpeak35_tconv1000.txt"]
-GMT_min = 0.0
-GMT_max = 2.0
+GMT_mins = [0.0]
+GMT_maxs = [3.5]
+t_durs = [40000]
 GMT_array = np.concatenate((np.concatenate((
-                            np.linspace(GMT_min, GMT_min, 5000),
-                            np.linspace(GMT_min, GMT_max, 40000))),
-                            np.linspace(GMT_max, GMT_max, 5000)))
+                            np.linspace(GMT_mins[0], GMT_mins[0], 5000),
+                            np.linspace(GMT_mins[0], GMT_maxs[0], t_durs[0]))),
+                            np.linspace(GMT_maxs[0], GMT_maxs[0], 5000)))
 GMTs = [GMT_array]
 
 ########################Declaration of variables from passed values#######################
@@ -111,7 +112,7 @@ else:
 
 # Include stochasticity in the tipping elements
 if stochasticity == True:
-    noise = 0.1 # noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
+    noise = 0.01 # noise level (can be changed; from Laeo Crnkovic-Rubsamen: 0.01)
     if scaled_noise == True:
         sigma = np.diag([1./gis_time, 1./thc_time, 1./wais_time, 1./amaz_time])*noise # diagonal uncorrelated noise
     else:
@@ -126,15 +127,15 @@ else:
 # Set parameters for Early Warning Signal analysis
 if ews_calculate == True:
     min_point = 0			# minimum number of states after which to start calculating EWS
-    detrend_window = 14000 		# the length of the detrending window
+    detrend_window = 15000 		# the length of the detrending window
     step_size = 10			# the number of states between each EWS calculation
-    bw = 230                            # the bandwidth for filtering timeseries
+    bw = 200                            # the bandwidth for filtering timeseries
     min_len = 25			# smallest sample number to start evaluating
     
-    tip_t = np.abs(GMT_array-limits_gis).argmin() # find t where GIS reaches tipping element
-    #tip_t = np.abs(GMT_array-limits_thc).argmin() # find t where THC reaches tipping element
-    #tip_t = np.abs(GMT_array-limits_wais).argmin() # find t where WAIS reaches tipping element
-    #tip_t = np.abs(GMT_array-limits_amaz).argmin() # find t where AMAZ reaches tipping element
+    tip_t_gis = np.abs(GMT_array-limits_gis).argmin() # find t where GIS reaches tipping element
+    tip_t_thc = np.abs(GMT_array-limits_thc).argmin() # find t where THC reaches tipping element
+    tip_t_wais = np.abs(GMT_array-limits_wais).argmin() # find t where WAIS reaches tipping element
+    tip_t_amaz = np.abs(GMT_array-limits_amaz).argmin() # find t where AMAZ reaches tipping element
 
 #######################INTEGRATION PARAMETERS########################
 # Timestep to integration; it is also possible to run integration until equilibrium
@@ -188,13 +189,13 @@ for kk in plus_minus_links:
         """
         for GMT in GMTs:
             
-            T_lim = GMT_min
-            T_peak = GMT_max
-            t_conv = 0
-
-            print("T_lim: {}°C".format(T_lim))
-            print("T_peak: {}°C".format(T_peak))
-            print("t_conv: {}yrs".format(t_conv))
+            T_start = GMT_mins[0]
+            T_end = GMT_maxs[0]
+            t_dur = t_durs[0]
+            
+            print("T_start: {}°C".format(T_start))
+            print("T_end: {}°C".format(T_end))
+            print("t_dur: {}yrs".format(t_dur))
 
             output = []
             
@@ -347,13 +348,13 @@ for kk in plus_minus_links:
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[2]].count(True),
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
                                ])
-
+            
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
                 data = np.array(output)
-                np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_Tlim{}_Tpeak{}_tconv{}_{:.2f}.txt".format(long_save_name, 
-			        kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength), data)
+                np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_Tstart{}_Tend{}_tdur{}_{:.2f}.txt".format(long_save_name, 
+			        kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength), data)
                 time = data.T[0]
                 state_gis = data.T[1]
                 state_thc = data.T[2]
@@ -372,7 +373,6 @@ for kk in plus_minus_links:
                 plt.plot(time, gaussian_filter1d(state_wais, bw), color = 'grey')
                 plt.plot(time, state_gis, label="GIS", color='c')
                 plt.plot(time, gaussian_filter1d(state_gis, bw), color = 'grey')
-                plt.axvline(tip_t, color='k', linestyle='--')
                 plt.xlabel("Time [yr]")
                 plt.ylabel("system feature f [a.u.]")
                 plt.legend(loc='best')  # , ncol=5)
@@ -380,88 +380,205 @@ for kk in plus_minus_links:
                 ax2.plot(time, GMT[:int(duration)], color='r')
                 ax2.grid(False)
                 ax2.set_ylabel("$\Delta$GMT")
+                ax2.yaxis.label.set_color('r')
                 plt.tight_layout()
-                plt.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
-                            kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
+                if scaled_noise == True:
+                    fig.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}scaled.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                else:
+                    fig.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
                 #plt.show()
                 plt.clf()
                 plt.close()
 
                 if ews_calculate == True:
                     
-                    fig, [ax1, ax2, ax3] = plt.subplots(3, 1, figsize=(5,15)) 
+                    # GIS
 
+                    fig, [ax1, ax2, ax3] = plt.subplots(3, 1, figsize=(8,7), sharex=True)
+                    if scaled_noise == True:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (scaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    else:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (unscaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
                     # Plot residual
-
-                    fig = plt.figure(figsize=(10, 3))
-                    plt.grid(True)
-                    plt.title("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
-                    plt.plot(time, state_gis - gaussian_filter1d(state_gis, bw), label="GIS",color = 'c')
-                    #plt.plot(time, state_thc - gaussian_filter1d(state_thc, bw), label="THC", color='b')
-                    #plt.plot(time, state_wais - gaussian_filter1d(state_wais, bw), label="WAIS", color='k')
-                    #plt.plot(time, state_amaz - gaussian_filter1d(state_amaz, bw), label="AMAZ", color='g')
-                    plt.axvline(tip_t, color='k', linestyle='--')
-                    plt.xlabel("Time [yr]")
-                    plt.ylabel("system residual [a.u.]")
-                    plt.legend(loc='best')  # , ncol=5)
-                    plt.tight_layout()
-                    plt.savefig("{}/feedbacks/network_{}_{}/{}/residual_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
-                            kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
-                    #plt.show()
-                    plt.clf()
-                    plt.close()
+                    ax1.grid(True)
+                    ax1.plot(time, state_gis - gaussian_filter1d(state_gis, bw), label="GIS",color = 'c')
+                    ax1.axvline(tip_t_gis, color='k', linestyle='--')
+                    ax1.set_ylabel("System residual [a.u.]")
 
                     # Plot autocorrelation
-                    fig, ax1 = plt.subplots(1,1)
-                    ax2 = ax1.twinx()
-                    ax1.grid(True)
-                    ax2.grid(False)
-                    fig.suptitle("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
-                    ax1.scatter(time, ann_autocorr_GIS, label="GIS", color='c', s=2)
-                    #ax1.scatter(time, ann_autocorr_THC, label="THC", color='b', s=2)
-                    #ax1.scatter(time, ann_autocorr_WAIS, label="WAIS", color='k', s=2)
-                    #ax1.scatter(time, ann_autocorr_AMAZ, label="AMAZ", color='g', s=2)
-                    ax2.plot(time, tau_autocorr_GIS, color='r')
-                    #ax2.plot(time, tau_autocorr_THC, color='r')
-                    #ax2.plot(time, tau_autocorr_WAIS, color='r')
-                    #ax2.plot(time, tau_autocorr_AMAZ, color='r')
-                    ax1.axvline(tip_t, color='k', linestyle='--')
-                    ax1.set_xlabel("Time [yr]")
-                    ax1.set_ylabel("Autocorrelation")
-                    ax2.set_ylabel(r"Kendall $\tau$ correlation")
-                    ax1.legend(loc='best')  # , ncol=5)
-                    fig.tight_layout()
-                    fig.savefig("{}/feedbacks/network_{}_{}/{}/AC_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
-			        kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
-                    #plt.show()
-                    fig.clf()
-                    plt.close()
-                   
+                    ax2.grid(True)
+                    ax2r = ax2.twinx()
+                    ax2r.grid(False)
+                    ax2.scatter(time, ann_autocorr_GIS, label="GIS", color='c', s=2)
+                    ax2r.plot(time, tau_autocorr_GIS, color='r')
+                    ax2.axvline(tip_t_gis, color='k', linestyle='--')
+                    ax2.set_ylabel("Autocorrelation")
+                    ax2r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax2r.yaxis.label.set_color('r')
+
                     # Plot variance
-                    fig, ax1 = plt.subplots(1,1)
-                    ax2 = ax1.twinx()
-                    ax1.grid(True)
-                    ax2.grid(False)
-                    fig.suptitle("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
-                    ax1.scatter(time, ann_variance_GIS, label="GIS", color='c', s=2)
-                    #ax1.scatter(time, ann_variance_THC, label="THC", color='b', s=2)
-                    #ax1.scatter(time, ann_variance_WAIS, label="WAIS", color='k', s=2)
-                    #ax1.scatter(time, ann_variance_AMAZ, label="AMAZ", color='g', s=2)
-                    ax2.plot(time, tau_variance_GIS, color='r')
-                    #ax2.plot(time, tau_variance_THC, color='r')
-                    #ax2.plot(time, tau_variance_WAIS, color='r')
-                    #ax2.plot(time, tau_variance_AMAZ, color='r')
-                    ax1.axvline(tip_t, color='k', linestyle='--')
-                    ax1.set_xlabel("Time [yr]")
-                    ax1.set_ylabel(r"Variance [a.u.$^2$]")
-                    ax2.set_ylabel(r"Kendall $\tau$ correlation")
-                    ax1.legend(loc='best')  # , ncol=5)
+                    ax3.grid(True)
+                    ax3r= ax3.twinx()
+                    ax3r.grid(False)
+                    ax3.scatter(time, ann_variance_GIS, label="GIS", color='c', s=2)
+                    ax3r.plot(time, tau_variance_GIS, color='r')
+                    ax3.axvline(tip_t_gis, color='k', linestyle='--')
+                    ax3.set_xlabel("Time [yr]")
+                    ax3.set_ylabel(r"Variance [a.u.$^2$]")
+                    ax3r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax3r.yaxis.label.set_color('r')
+
                     fig.tight_layout()
-                    fig.savefig("{}/feedbacks/network_{}_{}/{}/var_Tlim{}_Tpeak{}_tconv{}_{:.2f}.pdf".format(long_save_name,
-                                kk[0], kk[1], str(mc_dir).zfill(4), T_lim, T_peak, t_conv, strength))
+                    if scaled_noise == True:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_GIS_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}scaled.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    else:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_GIS_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
                     #plt.show()
                     fig.clf()
                     plt.close()
+                    
+                    # THC
+
+                    fig, [ax1, ax2, ax3] = plt.subplots(3, 1, figsize=(8,7), sharex=True)
+                    if scaled_noise == True:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (scaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    else:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (unscaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    # Plot residual
+                    ax1.grid(True)
+                    ax1.plot(time, state_thc - gaussian_filter1d(state_thc, bw), label="THC",color = 'b')
+                    ax1.axvline(tip_t_thc, color='k', linestyle='--')
+                    ax1.set_ylabel("System residual [a.u.]")
+
+                    # Plot autocorrelation
+                    ax2.grid(True)
+                    ax2r = ax2.twinx()
+                    ax2r.grid(False)
+                    ax2.scatter(time, ann_autocorr_THC, label="THC", color='b', s=2)
+                    ax2r.plot(time, tau_autocorr_THC, color='r')
+                    ax2.axvline(tip_t_thc, color='k', linestyle='--')
+                    ax2.set_ylabel("Autocorrelation")
+                    ax2r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax2r.yaxis.label.set_color('r')
+
+                    # Plot variance
+                    ax3.grid(True)
+                    ax3r= ax3.twinx()
+                    ax3r.grid(False)
+                    ax3.scatter(time, ann_variance_THC, label="THC", color='b', s=2)
+                    ax3r.plot(time, tau_variance_THC, color='r')
+                    ax3.axvline(tip_t_thc, color='k', linestyle='--')
+                    ax3.set_xlabel("Time [yr]")
+                    ax3.set_ylabel(r"Variance [a.u.$^2$]")
+                    ax3r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax3r.yaxis.label.set_color('r')
+
+                    fig.tight_layout()
+                    if scaled_noise == True:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_THC_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}scaled.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    else:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_THC_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    #plt.show()
+                    fig.clf()
+                    
+                    # WAIS
+
+                    fig, [ax1, ax2, ax3] = plt.subplots(3, 1, figsize=(8,7), sharex=True)
+                    if scaled_noise == True:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (scaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    else:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (unscaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    # Plot residual
+                    ax1.grid(True)
+                    ax1.plot(time, state_wais - gaussian_filter1d(state_wais, bw), label="WAIS",color = 'k')
+                    ax1.axvline(tip_t_wais, color='k', linestyle='--')
+                    ax1.set_ylabel("System residual [a.u.]")
+
+                    # Plot autocorrelation
+                    ax2.grid(True)
+                    ax2r = ax2.twinx()
+                    ax2r.grid(False)
+                    ax2.scatter(time, ann_autocorr_WAIS, label="WAIS", color='k', s=2)
+                    ax2r.plot(time, tau_autocorr_WAIS, color='r')
+                    ax2.axvline(tip_t_wais, color='k', linestyle='--')
+                    ax2.set_ylabel("Autocorrelation")
+                    ax2r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax2r.yaxis.label.set_color('r')
+
+                    # Plot variance
+                    ax3.grid(True)
+                    ax3r= ax3.twinx()
+                    ax3r.grid(False)
+                    ax3.scatter(time, ann_variance_WAIS, label="WAIS", color='k', s=2)
+                    ax3r.plot(time, tau_variance_WAIS, color='r')
+                    ax3.axvline(tip_t_wais, color='k', linestyle='--')
+                    ax3.set_xlabel("Time [yr]")
+                    ax3.set_ylabel(r"Variance [a.u.$^2$]")
+                    ax3r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax3r.yaxis.label.set_color('r')
+
+                    fig.tight_layout()
+                    if scaled_noise == True:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_WAIS_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}scaled.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    else:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_WAIS_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    #plt.show()
+                    fig.clf()
+
+                    # AMAZ
+
+                    fig, [ax1, ax2, ax3] = plt.subplots(3, 1, figsize=(8,7), sharex=True)
+                    if scaled_noise == True:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (scaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    else:
+                        fig.suptitle("Coupling strength: {}\n Wais to Thc:{} Thc to Amaz:{} \n Noise level:{} (unscaled)".format(np.round(strength, 2), kk[0], kk[1], noise))
+                    # Plot residual
+                    ax1.grid(True)
+                    ax1.plot(time, state_amaz - gaussian_filter1d(state_amaz, bw), label="AMAZ",color = 'g')
+                    ax1.axvline(tip_t_amaz, color='k', linestyle='--')
+                    ax1.set_ylabel("System residual [a.u.]")
+
+                    # Plot autocorrelation
+                    ax2.grid(True)
+                    ax2r = ax2.twinx()
+                    ax2r.grid(False)
+                    ax2.scatter(time, ann_autocorr_AMAZ, label="AMAZ", color='g', s=2)
+                    ax2r.plot(time, tau_autocorr_AMAZ, color='r')
+                    ax2.axvline(tip_t_amaz, color='k', linestyle='--')
+                    ax2.set_ylabel("Autocorrelation")
+                    ax2r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax2r.yaxis.label.set_color('r')
+
+                    # Plot variance
+                    ax3.grid(True)
+                    ax3r= ax3.twinx()
+                    ax3r.grid(False)
+                    ax3.scatter(time, ann_variance_AMAZ, label="AMAZ", color='g', s=2)
+                    ax3r.plot(time, tau_variance_AMAZ, color='r')
+                    ax3.axvline(tip_t_amaz, color='k', linestyle='--')
+                    ax3.set_xlabel("Time [yr]")
+                    ax3.set_ylabel(r"Variance [a.u.$^2$]")
+                    ax3r.set_ylabel(r"Kendall $\tau$ correlation")
+                    ax3r.yaxis.label.set_color('r')
+
+                    fig.tight_layout()
+                    if scaled_noise == True:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_AMAZ_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}scaled.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    else:
+                        fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_AMAZ_Tstart{}_Tend{}_tdur{}_{:.2f}_n{}.pdf".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_start, T_end, t_dur, strength, noise))
+                    #plt.show()
+                    fig.clf()
+                    
 
 """
     # it is necessary to limit the amount of saved files
