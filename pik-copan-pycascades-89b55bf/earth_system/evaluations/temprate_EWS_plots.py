@@ -32,9 +32,9 @@ def add_colorbar(mappable,label):
     return cbar
 
 title = ["GIS", "THC", "WAIS", "AMAZ"]
-
+"""
 # plotting scatter plot with colormap for all coupling strengths
-for elem in range(1):
+for elem in range(4):
     df = dfs[elem]
 
     fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(9,5), sharey=True)
@@ -51,8 +51,61 @@ for elem in range(1):
     add_colorbar(im2, r"Kendall's $\tau$ correlation")
     fig.supxlabel(r"Temperature rate $^{\circ}$C/yr", fontsize=12)
     ax2.set_title("Variance")
+    
+    fig.savefig("plots/EWS_temprate_{}".format(title[elem]))
+"""    
+# plot for two coupling strengths
 
-    plt.show()
+strength1 = 0.0
+strength2 = 0.25
+trates = np.array(gis.loc[(slice(None),strength1),"Tau_AC_mean"].index.get_level_values("trate"))
+inv_trates = []
+for i in range(len(trates)):
+    inv_trates.append(r"1$^{\circ}C$/"+"{}yr".format(int(1./trates[i])))
+
+for elem in range(4):
+    df = dfs[elem]
+
+    fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(9,5), sharey=True)
+    fig.suptitle("Autocorrelation "+title[elem])
+
+    ax1.scatter(trates, df.loc[(slice(None),strength1),"Tau_AC_mean"].values, c="r")
+    ax1.set_xscale('log')
+    ax1.set_xticks(trates)
+    ax1.set_xticklabels(inv_trates, rotation='vertical')
+    ax1.set_ylabel(r"Kendall's $\tau$ correlation")
+    ax1.set_title("Coupling strength: {}".format(strength1))
+
+
+    ax2.scatter(trates, df.loc[(slice(None),strength2),"Tau_AC_mean"].values, c="r")
+    ax2.set_xscale('log')
+    ax2.set_xticks(trates)
+    ax2.set_xticklabels(inv_trates, rotation='vertical')
+    ax2.set_title("Coupling strength: {}".format(strength2))
+    fig.tight_layout()
+    fig.savefig("plots/EWS_AC_{}".format(title[elem]))
+    plt.clf()
+
+    fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(9,5), sharey=True)
+    fig.suptitle("Variance "+title[elem])
+
+    ax1.scatter(trates, df.loc[(slice(None),strength1),"Tau_var_mean"].values, c="r")
+    ax1.set_xscale('log')
+    ax1.set_xticks(trates)
+    ax1.set_xticklabels(inv_trates, rotation='vertical')
+    ax1.set_ylabel(r"Kendall's $\tau$ correlation")
+    ax1.set_title("Coupling strength: {}".format(strength1))
+
+
+    ax2.scatter(trates, df.loc[(slice(None),strength2),"Tau_var_mean"].values, c="r")
+    ax2.set_xscale('log')
+    ax2.set_xticks(trates)
+    ax2.set_xticklabels(inv_trates, rotation='vertical')    
+    ax2.set_title("Coupling strength: {}".format(strength2))
+    
+    fig.tight_layout()
+    fig.savefig("plots/EWS_var_{}.png".format(title[elem]))
+
 
 """
     pivoted = gis["Tau_AC_mean"].reset_index().pivot_table(index='strength',
