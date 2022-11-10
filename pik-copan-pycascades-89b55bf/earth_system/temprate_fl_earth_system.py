@@ -126,8 +126,8 @@ else:
 if ews_calculate == True:
     step_size = 10                                  # the number of states between each EWS calculation
     time_window = buffer_len                        # the time window in which to calculate EWS
-    detrend_window = [int(buffer_len/2)]*n          # the length of the detrending window
-    bandwidth = [80, 50, 70, 40]                             # the bandwidth for filtering timeseries
+    detrend_window = [int(time_window/2)]*n         # the length of the detrending window
+    bandwidth = [100, 70, 90, 30]                   # the bandwidth for filtering timeseries
     tip_threshold = -1./np.sqrt(3)                  # the analytical state value for element to reach tipping    
 
 #######################INTEGRATION PARAMETERS########################
@@ -267,6 +267,22 @@ for kk in plus_minus_links:
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
                                ])
             
+            for elem in range(n):
+
+                # check if the element is in a tipped state
+                if state_tipped[elem] == False:
+
+                    # calculate autocorrelation and variance for the points in the fixed time window
+                    autocorr_elem = calc_autocorrelation(states[elem, duration-time_window:duration], step_size, detrend_window[elem], bandwidth[elem])
+                    variance_elem = calc_variance(states[elem, duration-time_window:duration], step_size, detrend_window[elem], bandwidth[elem])
+
+                    # calculate Kendall Tau correlation of autocorrelation and variance
+                    Tau_autocorr[elem], p_value = kendalltau(autocorr_elem, np.arange(len(autocorr_elem)))
+                    Tau_variance[elem], p_value = kendalltau(variance_elem, np.arange(len(variance_elem)))
+
+                    autocorr[elem] = autocorr_elem
+                    variance[elem] = variance_elem
+
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
@@ -296,7 +312,7 @@ for kk in plus_minus_links:
                 ax2.set_ylabel("$\Delta$GMT")
                 ax2.yaxis.label.set_color('r')
                 plt.tight_layout()
-                fig.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.pdf".format(long_save_name,
+                fig.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
                                 kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise))
                 plt.clf()
                 plt.close()
@@ -337,7 +353,7 @@ for kk in plus_minus_links:
                             horizontalalignment='center', verticalalignment='center', transform=ax4.transAxes)
                     
                     fig.tight_layout()
-                    fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_elem{}_Tend{}_Trate{}_d{:.2f}_n{}.pdf".format(long_save_name,
+                    fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_elem{}_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
                                 kk[0], kk[1], str(mc_dir).zfill(4), elem, T_end, T_rate, strength, noise))
                     plt.clf()
                     plt.close()
