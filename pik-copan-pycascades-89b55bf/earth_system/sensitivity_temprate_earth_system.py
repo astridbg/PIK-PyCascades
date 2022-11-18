@@ -32,9 +32,6 @@ from earth_sys.timing import timing
 from earth_sys.functions_earth_system import global_functions
 from earth_sys.earth import earth_system
 
-temp_path = "/p/projects/dominoes/nicowun/conceptual_tipping/uniform_distribution/overshoot_study/temp_input/timeseries_final/"
-
-
 #measure time
 #start = time.time()
 
@@ -45,17 +42,16 @@ stochasticity = True            # gaussian noise is included in the tipping elem
 scaled_noise = False            # noise levels for each tipping element is scaled by the respective timescale    
 ews_calculate = True            # early warning signals are calculated; requires stochasticity == True
 #####################################################################
-duration = 40000
+duration = 50000
 long_save_name = "results"
 
 #######################GLOBAL VARIABLES##############################
-# drive coupling strength
-coupling_strength = np.array([0, 0.25])
-# drive global mean temperature (GMT) above pre-industrial
-T_end = 4.                                                                                      # final GMT increase [deg] 
-T_rates = [1./10000, 1./5000, 1./2500, 1./1000, 1./500, 1./300, 1./200, 1./100, 1./50, 1./10]   # GMT increase rate [deg/yr]
+#drive coupling strength
+coupling_strength = np.array([0])
+#drive global mean temperature (GMT) above pre-industrial
+T_end = 5.                             # final GMT increase [deg] 
+T_rates = [1./10000]                   # GMT increase rate [deg/yr]
 GMT_arrays = []
-# add buffer time with GMT=0 to make all time series lengths equal
 for T_rate in T_rates:
     increase_length = int(T_end/T_rate)
     increase_arr = np.linspace(0, T_end, increase_length)
@@ -126,7 +122,7 @@ else:
 # Set parameters for Early Warning Signal analysis
 if ews_calculate == True:
     step_size = 10                                  # the number of states between each EWS calculation
-    bandwidth = [130, 100, 120, 30]                  # the bandwidth for filtering timeseries
+    bandwidth = np.arange(10, 250, 10)              # the bandwidth for filtering timeseries
     tip_threshold = -1./np.sqrt(3)                  # the analytical state value for element to reach tipping    
 
 #######################INTEGRATION PARAMETERS########################
@@ -148,22 +144,22 @@ for kk in plus_minus_links:
     print("Thc to Amaz:{}".format(kk[1]))
     
     try:
-        os.stat("{}/feedbacks".format(long_save_name))
+        os.stat("{}/sensitivity".format(long_save_name))
     except:
-        os.mkdir("{}/feedbacks".format(long_save_name))
+        os.mkdir("{}/sensitivity".format(long_save_name))
 
     try:
-        os.stat("{}/feedbacks/network_{}_{}".format(long_save_name, kk[0], kk[1]))
+        os.stat("{}/sensitivity/network_{}_{}".format(long_save_name, kk[0], kk[1]))
     except:
-        os.mkdir("{}/feedbacks/network_{}_{}".format(long_save_name, kk[0], kk[1]))
+        os.mkdir("{}/sensitivity/network_{}_{}".format(long_save_name, kk[0], kk[1]))
 
     try:
-        os.stat("{}/feedbacks/network_{}_{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4) ))
+        os.stat("{}/sensitivity/network_{}_{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4) ))
     except:
-        os.mkdir("{}/feedbacks/network_{}_{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4) ))
+        os.mkdir("{}/sensitivity/network_{}_{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4) ))
     
     #save starting conditions
-    np.savetxt("{}/feedbacks/network_{}_{}/{}/empirical_values.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4)), sys_var)
+    np.savetxt("{}/sensitivity/network_{}_{}/{}/empirical_values.txt".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4)), sys_var)
 
     for strength in coupling_strength:
         print("Coupling strength: {}".format(strength))
@@ -182,10 +178,8 @@ for kk in plus_minus_links:
 
             # initialize intermediate storage arrays for EWS analysis
             states = np.empty((n, duration)) 
-            autocorr = [np.nan, np.nan, np.nan, np.nan]
-            variance = [np.nan, np.nan, np.nan, np.nan]
-            Tau_autocorr = [np.nan, np.nan, np.nan, np.nan]
-            Tau_variance = [np.nan, np.nan, np.nan, np.nan]
+            Tau_autocorr = np.empty((n, len(bandwidth)))
+            Tau_variance = np.empty((n, len(bandwidth)))
             state_tipped = [False, False, False, False]
             start_point = [0, 0, 0, 0]
             tip_t = [np.nan, np.nan, np.nan, np.nan]
@@ -246,16 +240,14 @@ for kk in plus_minus_links:
                         detrend_window[elem] = int(t/2)
                         
                         # calculate autocorrelation and variance for the points in the fixed time window
-                        autocorr_elem = calc_autocorrelation(states[elem,:t], step_size, detrend_window[elem], bandwidth[elem])
-                        variance_elem = calc_variance(states[elem,:t], step_size, detrend_window[elem], bandwidth[elem])
+                        for jj in range(len(bandwidth)):
+                            autocorr_elem = calc_autocorrelation(states[elem,:t], step_size, detrend_window[elem], bandwidth[jj])
+                            variance_elem = calc_variance(states[elem,:t], step_size, detrend_window[elem], bandwidth[jj])
 
-                        # calculate Kendall Tau correlation of autocorrelation and variance
-                        Tau_autocorr[elem], p_value = kendalltau(autocorr_elem, np.arange(len(autocorr_elem)))
-                        Tau_variance[elem], p_value = kendalltau(variance_elem, np.arange(len(variance_elem)))
-                        
-                        autocorr[elem] = autocorr_elem
-                        variance[elem] = variance_elem
-                    
+                            # calculate Kendall Tau correlation of autocorrelation and variance
+                            Tau_autocorr[elem, jj], p_value = kendalltau(autocorr_elem, np.arange(len(autocorr_elem)))
+                            Tau_variance[elem, jj], p_value = kendalltau(variance_elem, np.arange(len(variance_elem)))
+
                 #saving structure
                 output.append([t,
                                ev.get_timeseries()[1][-1, 0],
@@ -269,34 +261,16 @@ for kk in plus_minus_links:
                                [net.get_tip_states(ev.get_timeseries()[1][-1])[3]].count(True)
                                ])
             
-            for elem in range(n):
-
-                # check if the element is in a tipped state
-                if state_tipped[elem] == False:
-                    # set the detrending window to half the timeseries
-                    detrend_window[elem] = int(duration/2)
-
-                    # calculate autocorrelation and variance for the points in the fixed time window
-                    autocorr_elem = calc_autocorrelation(states[elem,:], step_size, detrend_window[elem], bandwidth[elem])
-                    variance_elem = calc_variance(states[elem,:], step_size, detrend_window[elem], bandwidth[elem])
-
-                    # calculate Kendall Tau correlation of autocorrelation and variance
-                    Tau_autocorr[elem], p_value = kendalltau(autocorr_elem, np.arange(len(autocorr_elem)))
-                    Tau_variance[elem], p_value = kendalltau(variance_elem, np.arange(len(variance_elem)))
-
-                    autocorr[elem] = autocorr_elem
-                    variance[elem] = variance_elem
-
             #necessary for break condition
             if len(output) != 0:
                 #saving structure
                 data = np.array(output)
-                np.savetxt("{}/feedbacks/network_{}_{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.txt".format(long_save_name, 
+                np.savetxt("{}/sensitivity/network_{}_{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.txt".format(long_save_name, 
 			        kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise), data)
-                Tau_analysis = np.array([state_tipped, Tau_autocorr, Tau_variance])
-                np.savetxt("{}/feedbacks/network_{}_{}/{}/Tau_Tend{}_Trate{}_d{:.2f}_n{}.txt".format(long_save_name,
-                                kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise), Tau_analysis)
-                 
+                np.savetxt("{}/sensitivity/network_{}_{}/{}/Tau_AC_Tend{}_Trate{}_d{:.2f}_n{}.txt".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise), Tau_autocorr)
+                np.savetxt("{}/sensitivity/network_{}_{}/{}/Tau_var_Tend{}_Trate{}_d{:.2f}_n{}.txt".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise), Tau_variance)
                 # Plotting structure
                 time = data.T[0]
                 colors = ['c','b','k','g']
@@ -316,50 +290,41 @@ for kk in plus_minus_links:
                 ax2.set_ylabel("$\Delta$GMT")
                 ax2.yaxis.label.set_color('r')
                 plt.tight_layout()
-                fig.savefig("{}/feedbacks/network_{}_{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
+                fig.savefig("{}/sensitivity/network_{}_{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
                                 kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise))
                 plt.clf()
                 plt.close()
 
-                for elem in np.where(state_tipped)[0]:
                     
-                    fig, [ax1, ax2, ax3, ax4] = plt.subplots(4, 1, figsize=(8,8), sharex=True)
-                    fig.suptitle(labels[elem]+"\n Coupling strength: {}, Wais to Thc:{} Thc to Amaz:{} \n Noise level:{}".format(np.round(strength, 2), kk[0], kk[1], noise))
+                fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(10,5), sharey=True)
+                fig.suptitle("Coupling strength: {}, Wais to Thc:{} Thc to Amaz:{}, Noise level:{}".format(np.round(strength, 2), kk[0], kk[1], noise))
 
-                    # Plot time window of states
+                # Plot autocorrelation
 
-                    ax1.grid(True)
-                    ax1.plot(time[:tip_t[elem]], data.T[elem+1,:tip_t[elem]], c=colors[elem])
-                    ax1.plot(time[:tip_t[elem]], gaussian_filter1d(data.T[elem+1,:tip_t[elem]], bandwidth[elem]), c="gray")
-                    ax1.set_ylabel("System state [a.u.]")
+                ax1.grid(True)
+                for elem in range(n):
+                    ax1.plot(bandwidth, Tau_autocorr[elem, :], c=colors[elem])
+                    ax1.scatter(bandwidth, Tau_autocorr[elem, :], c=colors[elem], label=labels[elem])
+                ax1.set_ylabel(r"Kendall $\tau$ correlation")
+                ax1.set_ylim(-1, 1)
+                ax1.set_xlabel("Filtering bandwidth")
+                ax1.set_title("Autocorrelation")
 
-
-                    # Plot residual
-                    ax2.grid(True)
-                    ax2.plot(time[:tip_t[elem]], data.T[elem+1,:tip_t[elem]] - gaussian_filter1d(data.T[elem+1,:tip_t[elem]], bandwidth[elem]), c=colors[elem])
-                    ax2.set_ylabel("System residual")
+                # Plot residual
+                ax2.grid(True)
+                for elem in range(n):
+                    ax2.plot(bandwidth, Tau_variance[elem,:], c=colors[elem])
+                    ax2.scatter(bandwidth, Tau_variance[elem,:], c=colors[elem], label=labels[elem])
+                ax2.set_xlabel("Filtering bandwidth")
+                ax2.legend(loc="best")
+                ax2.set_title("Variance")
 
                     
-                    # Plot autocorrelation
-                    ax3.grid(True)
-                    ax3.scatter(time[detrend_window[elem]:tip_t[elem]:step_size], autocorr[elem], label=labels[elem], c=colors[elem], s=2)
-                    ax3.set_ylabel("Autocorrelation")
-                    ax3.text(0.15, 0.1, "Kendall tau: {}".format(np.round(Tau_autocorr[elem], 2)), 
-                            horizontalalignment='center', verticalalignment='center', transform=ax3.transAxes)
-
-                    # Plot variance
-                    ax4.grid(True)
-                    ax4.scatter(time[detrend_window[elem]:tip_t[elem]:step_size], variance[elem], label=labels[elem], c=colors[elem], s=2)
-                    ax4.set_xlabel("Time [yr]")
-                    ax4.set_ylabel(r"Variance")
-                    ax4.text(0.15, 0.1, "Kendall tau: {}".format(np.round(Tau_variance[elem], 2)), 
-                            horizontalalignment='center', verticalalignment='center', transform=ax4.transAxes)
-                    
-                    fig.tight_layout()
-                    fig.savefig("{}/feedbacks/network_{}_{}/{}/EWS_elem{}_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
-                                kk[0], kk[1], str(mc_dir).zfill(4), elem, T_end, T_rate, strength, noise))
-                    plt.clf()
-                    plt.close()
+                fig.tight_layout()
+                fig.savefig("{}/sensitivity/network_{}_{}/{}/bandwidth_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
+                                kk[0], kk[1], str(mc_dir).zfill(4), T_end, T_rate, strength, noise))
+                plt.clf()
+                plt.close()
 
 """
     # it is necessary to limit the amount of saved files
