@@ -8,7 +8,7 @@ import re
 import glob
 import pandas as pd
 
-init_folder = "0111"
+init_folder = "0137"
 
 # read files in one folder to get temprates and coupling strengths
 trates = []
@@ -51,7 +51,7 @@ for trate in set(trates):
             output = []
             final = []
             folders = np.array(np.sort(glob.glob(network + "/0*"))) #do not collect special folders which start with a "-"
-            for folder in [folders[-1]]:
+            for folder in [folders[-4]]:
                 fnames = np.array(np.sort(glob.glob(folder + "/Tau*")))
                 fname = folder + "/Tau_Tend4.0_Trate{}_d{}_n0.005.txt".format(trate, strength)
                 # requires only one noise level and end temperature to be used
