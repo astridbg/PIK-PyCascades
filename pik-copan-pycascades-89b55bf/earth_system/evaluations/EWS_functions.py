@@ -53,6 +53,55 @@ def calc_variance(residuals, step_size,
 
     return variance
 
+def even_number(a):
+    if (len(a) % 2) == 0:
+        return a
+    else:
+        return a[:-1]
+        print ("The length of the series is an odd number")
+
+def delta(k, N):
+    if k == 0 or k == N/2:
+        return 1
+    else:
+        return 0
+
+def discrete_Fourier(a):
+    N = len(a)
+    k_list = np.arange(0, N/2+1)
+    a_k = []
+    for k in k_list:
+        s = 0
+        for j in range(N):
+            s += a[j] * np.exp(2*np.pi*1j*j*k/N)
+        a_k.append( (2-delta(k,N))/N * s )
+    return a_k
+
+def random_phase(a_k):
+
+    N_k = len(a_k)
+    r_k = []
+    r_k.append(0)
+    for k in range(1,N_k-1):
+        theta = np.random.uniform(0,2*np.pi)
+        r_k.append(abs(a_k[k]) * np.exp(1j*theta))
+    theta = np.random.uniform(0,2*np.pi)
+    r_k.append( 2**0.5 * abs(a_k[N_k-1]) * np.cos(theta) )
+    return r_k
+
+def inverse_discrete_Fourier(r_k, N):
+
+    N_k = len(r_k)
+    r = []
+
+    for j in range(N):
+        s = 0
+        for k in range(N_k):
+            s += r_k[k] * np.exp (-2*np.pi*1j*j*k/N)
+        r.append(s.real)
+
+    return r
+
 ################################
 # Boers, N. Observation-based early-warning signals for a collapse of the Atlantic Meridional Overturning Circulation. 
 # Nat. Clim. Chang. 11, 680–688 (2021). https://doi.org/10.1038/s41558-021-01097-4
