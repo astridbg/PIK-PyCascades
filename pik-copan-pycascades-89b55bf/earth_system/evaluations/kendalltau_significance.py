@@ -6,30 +6,32 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import time 
 
 from scipy.ndimage import gaussian_filter1d
 from EWS_functions import *
 from scipy.stats import kendalltau
+#measure time
+#start = time.time()
 
 network = "1.0_1.0"
 empirical_values = "0137"
 folder = "../results/feedbacks/network_"+network+"/"+empirical_values
+subfolders = np.sort(glob.glob(folder + "/0*"))
+
 n = 4 # number of tipping elements
-N = 10 # number of surrogate series
+N = 100 # number of surrogate series
 
-bandwidth = [20, 20, 20, 20]
-step_size = 10
-
-subfolders = np.sort(glob.glob(folder + "/*"))
-print(subfolders)
+step_size = 5
+bandwidths = pd.read_csv("../results/sensitivity/network_1.0_1.0/0137/bandwidths.csv", index_col=0)
 
 # Extract temperature rates and coupling strengths (should be equivalent for all ensemble runs)
 trates = []
 strengths = []
-datafiles = np.sort(glob.glob(subfolders[1] + "/states_*.json"))
+datafiles = np.sort(glob.glob(subfolders[0] + "/states_*.json"))
 for f in datafiles:
-        trate = re.split("_",re.split("Trate",f)[-1])[0]
-        strength = re.split("_",re.split("d",f)[-1])[0]
+        trate = np.round(float(re.split("_",re.split("Trate",f)[-1])[0]),5)
+        strength = float(re.split("_",re.split("d",f)[-1])[0])
         trates.append(trate)
         strengths.append(strength)
 elemnms = ["GIS", "THC", "WAIS", "AMAZ"] 
@@ -44,7 +46,11 @@ pv_var = pd.DataFrame(index=index, columns=elemnms)
 for subfolder in subfolders:
     # Start saving structure
     subname = re.split(folder+"/", subfolder)[-1]
-
+    
+    try:
+        os.stat("postprocessed")
+    expect:
+        os.mkdir("postprocessed")
     try:
         os.stat("postprocessed/{}".format(subname))
     except:
@@ -53,8 +59,8 @@ for subfolder in subfolders:
     datafiles = np.sort(glob.glob(subfolder + "/states_*.json"))
     for f in datafiles:
         # Get temperature rate and coupling strength
-        trate = re.split("_",re.split("Trate",f)[-1])[0]
-        strength = re.split("_",re.split("d",f)[-1])[0]
+        trate = np.round(float(re.split("_",re.split("Trate",f)[-1])[0]),5)
+        strength = float(re.split("_",re.split("d",f)[-1])[0])
         # Get temperature increase starting point
         start_point = int(re.split("_",re.split("tstart",f)[-1])[0])
     
@@ -65,11 +71,12 @@ for subfolder in subfolders:
         for elem in range(n):
             
             # Select detrending window
-            detrend_window = int((len(data[elem])-start_point)/2)
-        
+            detrend_window = max(int((len(data[elem])-start_point)/2),50)
+            bandwidth = bandwidths[elemnms[elem]].loc[trate]
+
             # Take residual and choose starting point
             states = np.array(even_number(data[elem][start_point-detrend_window:]))
-            A = states - gaussian_filter1d(states, bandwidth[elem])
+            A = states - gaussian_filter1d(states, bandwidth)
             autocorr = calc_autocorrelation(A, step_size, detrend_window)
             variance = calc_variance(A, step_size, detrend_window)
 
@@ -84,18 +91,11 @@ for subfolder in subfolders:
             tau_var.loc[(trate, strength), elemnms[elem]] = tau_variance
             pv_var.loc[(trate, strength), elemnms[elem]] = p_var
 
-            # Plotting
-            # plt.figure()
-            # plt.hist(tau_autocorr, bins=5)
-            # plt.axvline(o_tau_autocorr, c='r',linestyle='--', label='Original')
-            # plt.xlabel(r"Kendall $\tau$ correlation")
-            # plt.ylabel("Frequency")
-            # plt.legend(loc='best')
-            # plt.show()
-    
     tau_ac.to_csv("postprocessed/"+subname+"/tau_ac.csv")
     pv_ac.to_csv("postprocessed/"+subname+"/pvalue_ac.csv")
     tau_var.to_csv("postprocessed/"+subname+"/tau_var.csv")
     pv_var.to_csv("postprocessed/"+subname+"/pvalue_var.csv")
     
+#end = time.time()
+#print("Time elapsed until Finish: {}s".format(end - start))
 
