@@ -20,7 +20,7 @@ folder = "../results/feedbacks/network_"+network+"/"+empirical_values
 subfolders = np.sort(glob.glob(folder + "/0*"))
 
 n = 4 # number of tipping elements
-N = 100 # number of surrogate series
+N = 1000 # number of surrogate series
 
 step_size = 5
 bandwidths = pd.read_csv("../results/sensitivity/network_1.0_1.0/0137/bandwidths.csv", index_col=0)
@@ -49,7 +49,7 @@ for subfolder in subfolders:
     
     try:
         os.stat("postprocessed")
-    expect:
+    except:
         os.mkdir("postprocessed")
     try:
         os.stat("postprocessed/{}".format(subname))
