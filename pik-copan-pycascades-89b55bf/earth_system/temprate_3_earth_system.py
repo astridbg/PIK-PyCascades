@@ -44,8 +44,8 @@ scaled_noise = False            # noise levels for each tipping element is scale
 ews_calculate = True            # early warning signals are calculated; requires stochasticity == True
 #####################################################################
 long_save_name = "results"
-#ensemble_members = np.arange(1,101)
-ensemble_members = [3]
+ensemble_members = np.arange(1,101)
+
 #######################GLOBAL VARIABLES##############################
 # drive coupling strength
 coupling_strength = np.array([0, 0.25])
@@ -171,9 +171,9 @@ for kk in plus_minus_links:
     for member in ensemble_members:
 
         try:
-            os.stat("{}/feedbacks/network_{}_{}/{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(3) ))
+            os.stat("{}/feedbacks/network_{}_{}/{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(4) ))
         except:
-            os.mkdir("{}/feedbacks/network_{}_{}/{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(3) ))
+            os.mkdir("{}/feedbacks/network_{}_{}/{}/{}".format(long_save_name, kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(4) ))
 
 
         for strength in coupling_strength:
@@ -277,35 +277,35 @@ for kk in plus_minus_links:
                     #saving structure
                     data = np.array(output)
                     np.savetxt("{}/feedbacks/network_{}_{}/{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.txt".format(long_save_name, 
-                                    kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(3), T_end, T_rate, strength, noise), data)
+                                    kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(4), T_end, T_rate, strength, noise), data)
                     state_data = [list(states[0,:tip_t[0]]), list(states[1,:tip_t[1]]),  list(states[2,:tip_t[2]]), list(states[3,:tip_t[3]])]
                     with open("{}/feedbacks/network_{}_{}/{}/{}/states_tstart{}_Tend{}_Trate{}_d{:.2f}_n{}.json".format(long_save_name,
-                                    kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(3), start_point, T_end, T_rate, strength, noise), "w") as f:
+                                    kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(4), start_point, T_end, T_rate, strength, noise), "w") as f:
                         f.write(json.dumps(state_data)) 
 
                     # Plotting structure
-                    time = data.T[0]
-                    colors = ['c','b','k','g']
-                    labels = ['GIS', 'THC', 'WAIS', 'AMAZ']
+                    #time = data.T[0]
+                    #colors = ['c','b','k','g']
+                    #labels = ['GIS', 'THC', 'WAIS', 'AMAZ']
 
-                    fig = plt.figure()
-                    plt.grid(True)
-                    plt.title("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
-                    for elem in range(n):
-                        plt.plot(time, data.T[elem+1], label=labels[elem], color=colors[elem])
-                    plt.xlabel("Time [yr]")
-                    plt.ylabel("System feature f [a.u.]")
-                    plt.legend(loc='best')
-                    ax2 = plt.gca().twinx()
-                    ax2.plot(time, GMT, color='r')
-                    ax2.grid(False)
-                    ax2.set_ylabel("$\Delta$GMT")
-                    ax2.yaxis.label.set_color('r')
-                    plt.tight_layout()
-                    fig.savefig("{}/feedbacks/network_{}_{}/{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
-                                    kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(3), T_end, T_rate, strength, noise))
-                    plt.clf()
-                    plt.close()
+                    #fig = plt.figure()
+                    #plt.grid(True)
+                    #plt.title("Coupling strength: {}\n  Wais to Thc:{} Thc to Amaz:{}".format(np.round(strength, 2), kk[0], kk[1]))
+                    #for elem in range(n):
+                    #    plt.plot(time, data.T[elem+1], label=labels[elem], color=colors[elem])
+                    #plt.xlabel("Time [yr]")
+                    #plt.ylabel("System feature f [a.u.]")
+                    #plt.legend(loc='best')
+                    #ax2 = plt.gca().twinx()
+                    #ax2.plot(time, GMT, color='r')
+                    #ax2.grid(False)
+                    #ax2.set_ylabel("$\Delta$GMT")
+                    #ax2.yaxis.label.set_color('r')
+                    #plt.tight_layout()
+                    #fig.savefig("{}/feedbacks/network_{}_{}/{}/{}/feedbacks_Tend{}_Trate{}_d{:.2f}_n{}.png".format(long_save_name,
+                    #                kk[0], kk[1], str(mc_dir).zfill(4), str(member).zfill(4), T_end, T_rate, strength, noise))
+                    #plt.clf()
+                    #plt.close()
 
 """
     # it is necessary to limit the amount of saved files
