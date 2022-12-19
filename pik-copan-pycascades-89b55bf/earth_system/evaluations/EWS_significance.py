@@ -51,11 +51,19 @@ for subfolder in [subfolders[1]]:
     try:
         os.stat("postprocessed")
     except:
-        os.mkdir("postprocessed")
+        os.mkdir("postprocessed") 
     try:
-        os.stat("postprocessed/{}".format(subname))
+        os.stat("postprocessed/network_{}".format(network))
     except:
-        os.mkdir("postprocessed/{}".format(subname))
+        os.mkdir("postprocessed/network_{}".format(network))
+    try:
+        os.stat("postprocessed/network_{}/{}".format(network, empirical_values))
+    except:
+        os.mkdir("postprocessed/network_{}/{}".format(network, empirical_values))
+    try:
+        os.stat("postprocessed/network_{}/{}/{}".format(network, empirical_values, subname))
+    except:
+        os.mkdir("postprocessed/network_{}/{}/{}".format(network, empirical_values, subname))
 
     datafiles = np.sort(glob.glob(subfolder + "/states_*.json"))
     for f in datafiles:
@@ -95,10 +103,10 @@ for subfolder in [subfolders[1]]:
             tau_var.loc[(trate, strength), elemnms[elem]] = tau_variance
             pv_var.loc[(trate, strength), elemnms[elem]] = p_var
 
-    tau_ac.to_csv("postprocessed/"+subname+"/tau_ac.csv")
-    pv_ac.to_csv("postprocessed/"+subname+"/pvalue_ac.csv")
-    tau_var.to_csv("postprocessed/"+subname+"/tau_var.csv")
-    pv_var.to_csv("postprocessed/"+subname+"/pvalue_var.csv")
+    tau_ac.to_csv("postprocessed/network_"+network+"/"+empirical_values+"/"+subname+"/tau_ac.csv")
+    pv_ac.to_csv("postprocessed/network_"+network+"/"+empirical_values+"/"+subname+"/pvalue_ac.csv")
+    tau_var.to_csv("postprocessed/network_"+network+"/"+empirical_values+"/"+subname+"/tau_var.csv")
+    pv_var.to_csv("postprocessed/network_"+network+"/"+empirical_values+"/"+subname+"/pvalue_var.csv")
     
 end = time.time()
 print("Time elapsed until Finish: {}s".format(end - start))
