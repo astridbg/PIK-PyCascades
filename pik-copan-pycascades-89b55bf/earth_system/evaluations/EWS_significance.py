@@ -20,7 +20,7 @@ folder = "../results/feedbacks/network_"+network+"/"+empirical_values
 subfolders = np.sort(glob.glob(folder + "/0*"))
 
 n = 4 # number of tipping elements
-N = 1 # number of surrogate series
+N = 1000 # number of surrogate series
 
 step_size = 5
 bandwidths = pd.read_csv("../results/sensitivity/network_1.0_1.0/0137/bandwidths.csv", index_col=0)
@@ -35,7 +35,8 @@ for f in datafiles:
         trates.append(trate)
         strengths.append(strength)
 elemnms = ["GIS", "THC", "WAIS", "AMAZ"] 
-# Create empty dataframe for each tipping element
+
+# Create empty dataframe for saving data
 tuples = list(zip(*[np.sort(trates),strengths]))
 index = pd.MultiIndex.from_tuples(tuples, names=["trate", "strength"])
 tau_ac = pd.DataFrame(index=index, columns=elemnms)
@@ -72,20 +73,22 @@ for subfolder in [subfolders[1]]:
             
             # Select detrending window
             detrend_window = max(int((len(data[elem])-start_point)/2),50)
+            # Select filtering bandwidth
             bandwidth = bandwidths[elemnms[elem]].loc[trate]
 
             # Take residual and choose starting point
             states = np.array(even_number(data[elem][start_point-detrend_window:]))
             A = states - gaussian_filter1d(states, bandwidth)
+            
+            # Calculate autocorrelation and variance of original series
             autocorr = calc_autocorrelation(A, step_size, detrend_window)
             variance = calc_variance(A, step_size, detrend_window)
-
             tau_autocorr = kendalltau(autocorr, np.arange(len(autocorr)))[0]
             tau_variance = kendalltau(variance, np.arange(len(autocorr)))[0]
-
-            #p_ac = kendall_tau_test_Boers(autocorr, N, tau_autocorr)
-            #p_var = kendall_tau_test_Boers(variance, N, tau_variance)
-            p_ac, p_var = kendall_tau_test_Bolt(A, N, tau_autocorr, tau_variance, step_size, detrend_window)
+            
+            # Find the signifiance of the kendall taus by generating surrogates
+            p_ac = kendall_tau_test_Boers(autocorr, N, tau_autocorr)
+            p_var = kendall_tau_test_Boers(variance, N, tau_variance)
 
             tau_ac.loc[(trate, strength), elemnms[elem]] = tau_autocorr
             pv_ac.loc[(trate, strength), elemnms[elem]] = p_ac

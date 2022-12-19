@@ -8,10 +8,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set(font_scale=1.)
 
-alpha= 0.1
+# Set significance level 
+alpha=0.05
+
 folders = np.sort(glob.glob("postprocessed/*"))
 N = len(folders)
-
+# Create list of temprates in more readable format
 df = pd.read_csv(folders[1]+"/pvalue_ac.csv", index_col=[0,1])
 trates = np.array(df.index.get_level_values("trate").unique())
 strengths = np.array(df.index.get_level_values("strength").unique())
@@ -19,6 +21,7 @@ inv_trates = []
 for i in range(len(trates)):
     inv_trates.append(r"1$^{\circ}C$/"+"{}yr".format(int(1./trates[i])))
 
+# Begin plotting
 elemnms = ["GIS", "THC", "WAIS", "AMAZ"]
 
 indicators = ["ac", "var"]
@@ -33,13 +36,17 @@ for i in range(len(indicators)):
         
         for k in range(N):
             folder = folders[k]
+            # Read data from all ensemble members into one matrix
             pv = pd.read_csv(folder+"/pvalue_"+indicators[i]+".csv", index_col=[0,1], usecols=["trate", "strength", elemnms[elem]])
             pv = pv.values.reshape((len(trates), len(strengths)))
             pvalue[:,:,k] = pv
-
+        
+        # Find all pvalues which satisfy the significance
         s_pv = pvalue <= alpha
+        # Sum up satisfying pvalues across all ensemble members to get success rate
         s_pv = np.sum(s_pv, axis=2)/N
         
+        # Start plotting
         ax = axes.flat[elem]
         im = ax.imshow(s_pv.T, cmap=plt.cm.get_cmap('viridis', 10), vmin=0, vmax=1)
 
